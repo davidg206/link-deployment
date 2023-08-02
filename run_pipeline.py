@@ -1,4 +1,5 @@
 import subprocess
+import datetime
 import socket
 import sys
 import os
@@ -28,19 +29,12 @@ def setup_application_site(branch, application, log=False):
   web_server_port = None
   dedicated_server_port = None
 
-  if os.path.exists(file_path):
-    web_server_port = find_port_number_in_file(file_path, r'http://localhost:(\d+)')
-  else:
-    web_server_port = find_available_port(3000, 6000)
-    subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'])
+  web_server_port = find_available_port(3000, 6000)
+  subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
   location /{application} {{
     proxy_pass http://localhost:{web_server_port};
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
   }}
 """
 
@@ -74,7 +68,7 @@ server {{
         file.write(updated_content)
   else:
     make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
-    subprocess.run(make_certificate)
+    subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     with open(file_path, 'w') as file:
       file.write(new_server_block)
@@ -85,15 +79,15 @@ server {{
   subprocess.run(reload)
 
   # Set up web service file
-  file_path = f'/etc/systemd/system/dom_{branch}.service'
+  file_path = f'/etc/systemd/system/dom_{application}.service'
 
   # Make dedicated server first to get the port number
-  if not os.path.exists(file_path):
-    dedicated_server_port = setup_dedicated_server(branch)
-    # Now set up service file for the web server
-    service_file = f"""
+
+  dedicated_server_port = setup_dedicated_server(application)
+  # Now set up service file for the web server
+  service_file = f"""
 [Unit]
-Description=Web server for {branch}
+Description=Web server for {application}
 After=network.target
 
 [Service]
@@ -106,47 +100,42 @@ Restart=always
 WantedBy=multi-user.target
 """
 
-    with open(file_path, 'w') as file:
-      file.write(service_file)
+  with open(file_path, 'w') as file:
+    file.write(service_file)
 
-    subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-    subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{branch}'])
-    subprocess.run(['sudo', 'systemctl', 'start', f'dom_{branch}'])
+  subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
+  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  subprocess.run(['sudo', 'systemctl', 'start', f'dom_{application}'])
 
-  if log:
-    return f"""
+  current_datetime = datetime.datetime.now()
+  formatted_datetime = current_datetime.strftime("%d/%m/%Y %H:%M:%S")
+  return f"""
 {{
   branch: {branch},
   application: {application},
-  url: https://{branch}.palatialxr.com/{application}
-  web_server_port: {web_server_port},
-  dedicated_server_port: {dedicated_server_port}
-}}
-"""
-  else:
-    return f"""
-{{
-  branch: {branch},
-  application: {application},
-  url: https://{branch}.palatialxr.com/{application}
+  url: https://{branch}.palatialxr.com/{application},
+  palatial_webserver_port: 0000:{web_server_port},
+  palatial_dedicated_server_port: 0000:{dedicated_server_port},
+  unreal_websocket_endpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{application}/ws,
+  created: {formatted_datetime}
 }}
 """
 
-def setup_dedicated_server(branch):
-  file_path = f'/etc/systemd/system/server_{branch}.service'
+def setup_dedicated_server(application):
+  file_path = f'/etc/systemd/system/server_{application}.service'
 
   if not os.path.exists(file_path):
     dedicated_server_port = find_available_port(7777, 10777)
-    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'])
+    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""
 [Unit]
-Description=Dedicated server for {branch}
+Description=Dedicated server for {application}
 After=network.target
 
 [Service]
 User=david
-WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
+WorkingDirectory=/home/david/servers/{application}/LinuxServer/
 ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
 Restart=always
 
@@ -158,8 +147,8 @@ WantedBy=multi-user.target
       file.write(service_file)
 
     subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'])
-    subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
+    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'])
 
     return dedicated_server_port
   return find_port_number_in_file(file_path, r'-port=(\d+)')
@@ -172,3 +161,4 @@ if __name__ == "__main__":
   application = sys.argv[2]
 
   print(setup_application_site(branch, application))
+  sys.exit(0)

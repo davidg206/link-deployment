@@ -156,6 +156,7 @@ WantedBy=multi-user.target
 if __name__ == "__main__":
   if len(sys.argv) < 3:
     print('python run_pipeline.py <branch> <application>')
+    sys.exit(1)
 
   branch = sys.argv[1]
   application = sys.argv[2]

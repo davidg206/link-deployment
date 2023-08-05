@@ -10,3 +10,4 @@ sudo rm /etc/systemd/system/server_${1}.service
 sudo rm /etc/nginx/sites-available/$1.conf
 sudo rm /etc/nginx/sites-enabled/$1.conf
 sudo rm -rf ~/servers/$1
+sudo nginx -s reload

@@ -24,7 +24,7 @@ def find_available_port(start_port, end_port):
             continue
     raise ValueError(f"No available port found in the range {start_port} - {end_port}")
 
-def setup_application_site(branch, application, log=False):
+def setup_application_site(branch, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.conf'
   web_server_port = None
   dedicated_server_port = None
@@ -33,7 +33,7 @@ def setup_application_site(branch, application, log=False):
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
-  location /{application} {{
+  location / {{
     proxy_pass http://localhost:{web_server_port};
   }}
 """
@@ -80,21 +80,21 @@ server {{
   subprocess.run(reload)
 
   # Set up web service file
-  file_path = f'/etc/systemd/system/dom_{application}.service'
+  file_path = f'/etc/systemd/system/dom_{branch}.service'
 
   # Make dedicated server first to get the port number
 
-  dedicated_server_port = setup_dedicated_server(application)
+  dedicated_server_port = setup_dedicated_server(branch)
   # Now set up service file for the web server
   service_file = f"""
 [Unit]
-Description=Web server for {application}
+Description=Web server for {branch}
 After=network.target
 
 [Service]
 User=david
 WorkingDirectory=/home/david/Palatial-Web-Loading
-ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/{application} REACT_APP_DEDICATED_SERVER_PORT={dedicated_server_port} npm run start'
+ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ REACT_APP_DEDICATED_SERVER_PORT={dedicated_server_port} npm run start'
 Restart=always
 
 [Install]
@@ -105,25 +105,24 @@ WantedBy=multi-user.target
     file.write(service_file)
 
   subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-  subprocess.run(['sudo', 'systemctl', 'start', f'dom_{application}'])
+  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  subprocess.run(['sudo', 'systemctl', 'start', f'dom_{branch}'])
 
   current_datetime = datetime.datetime.now()
   formatted_datetime = current_datetime.strftime("%d/%m/%Y %H:%M:%S")
   return f"""
 {{
   branch: {branch},
-  application: {application},
-  url: https://{branch}.palatialxr.com/{application},
+  url: https://{branch}.palatialxr.com/,
   palatial_webserver_port: 0000:{web_server_port},
   palatial_dedicated_server_port: 0000:{dedicated_server_port},
-  unreal_websocket_endpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{application}/ws,
+  unreal_websocket_endpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{branch}/ws,
   created: {formatted_datetime}
 }}
 """
 
-def setup_dedicated_server(application):
-  file_path = f'/etc/systemd/system/server_{application}.service'
+def setup_dedicated_server(branch):
+  file_path = f'/etc/systemd/system/server_{branch}.service'
 
   if not os.path.exists(file_path):
     dedicated_server_port = find_available_port(7777, 10777)
@@ -131,12 +130,12 @@ def setup_dedicated_server(application):
 
     service_file = f"""
 [Unit]
-Description=Dedicated server for {application}
+Description=Dedicated server for {branch}
 After=network.target
 
 [Service]
 User=david
-WorkingDirectory=/home/david/servers/{application}/LinuxServer/
+WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
 ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
 Restart=always
 
@@ -148,19 +147,18 @@ WantedBy=multi-user.target
       file.write(service_file)
 
     subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'])
+    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
 
     return dedicated_server_port
   return find_port_number_in_file(file_path, r'-port=(\d+)')
 
 if __name__ == "__main__":
-  if len(sys.argv) < 3:
-    print('python run_pipeline.py <branch> <application>')
+  if len(sys.argv) < 2:
+    print('python run_pipeline.py <branch>')
     sys.exit(1)
 
   branch = sys.argv[1]
-  application = sys.argv[2]
 
-  print(setup_application_site(branch, application))
+  print(setup_application_site(branch))
   sys.exit(0)

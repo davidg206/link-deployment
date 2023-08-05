@@ -5,6 +5,16 @@ import sys
 import os
 import re
 
+def is_port_in_use(port):
+  try:
+      # Execute the 'sudo lsof -i:port' command and capture the output
+      result = subprocess.check_output(["sudo", "lsof", "-i:{}".format(port)], stderr=subprocess.STDOUT)
+      # If there is output, the port is in use
+      return True
+  except subprocess.CalledProcessError as e:
+      # If the command returns a non-zero exit code, there is no output, and the port is not in use
+      return False
+
 def find_port_number_in_file(file_path, pattern):
     with open(file_path, 'r') as file:
         for line in file:
@@ -16,12 +26,8 @@ def find_port_number_in_file(file_path, pattern):
 
 def find_available_port(start_port, end_port):
     for port in range(start_port, end_port + 1):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('localhost', port))
-                return port
-        except OSError:
-            continue
+      if not is_port_in_use(port):
+        return port
     raise ValueError(f"No available port found in the range {start_port} - {end_port}")
 
 def setup_application_site(branch, application, log=False):

@@ -4,6 +4,8 @@ import socket
 import sys
 import os
 import re
+import portLookup
+from dotenv import load_dotenv
 
 def find_port_number_in_file(file_path, pattern):
     with open(file_path, 'r') as file:
@@ -14,14 +16,20 @@ def find_port_number_in_file(file_path, pattern):
                 return port_number
     return None
 
+def is_port_in_use(port):
+  try:
+      # Execute the 'sudo lsof -i:port' command and capture the output
+      result = subprocess.check_output(["sudo", "lsof", "-i:{}".format(port)], stderr=subprocess.STDOUT)
+      # If there is output, the port is in use
+      return True
+  except subprocess.CalledProcessError as e:
+      # If the command returns a non-zero exit code, there is no output, and the port is not in use
+      return False
+
 def find_available_port(start_port, end_port):
     for port in range(start_port, end_port + 1):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('localhost', port))
-                return port
-        except OSError:
-            continue
+      if not is_port_in_use(port):
+        return port
     raise ValueError(f"No available port found in the range {start_port} - {end_port}")
 
 def setup_application_site(branch, log=False):
@@ -83,8 +91,8 @@ server {{
   file_path = f'/etc/systemd/system/dom_{branch}.service'
 
   # Make dedicated server first to get the port number
-
   dedicated_server_port = setup_dedicated_server(branch)
+
   # Now set up service file for the web server
   service_file = f"""
 [Unit]
@@ -94,7 +102,7 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/Palatial-Web-Loading
-ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ REACT_APP_DEDICATED_SERVER_PORT={dedicated_server_port} npm run start'
+ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ npm run start'
 Restart=always
 
 [Install]
@@ -125,9 +133,6 @@ def setup_dedicated_server(branch):
   file_path = f'/etc/systemd/system/server_{branch}.service'
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_available_port(7777, 10777)
-    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
     service_file = f"""
 [Unit]
 Description=Dedicated server for {branch}
@@ -135,8 +140,9 @@ After=network.target
 
 [Service]
 User=david
+Environment=PORT=$(python3 -c "from portLookup import findDedicatedServerPort; print(findDedicatedServerPort({branch}, 7777, 10777))")
 WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
-ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
+ExecStart=/bin/bash -c 'sudo ufw allow $PORT/udp && chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port=$PORT'
 Restart=always
 
 [Install]
@@ -150,8 +156,7 @@ WantedBy=multi-user.target
     subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
 
-    return dedicated_server_port
-  return find_port_number_in_file(file_path, r'-port=(\d+)')
+  return os.environ['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:
@@ -159,6 +164,8 @@ if __name__ == "__main__":
     sys.exit(1)
 
   branch = sys.argv[1]
+
+  load_dotenv(dotenv_path='/home/david/Palatial-Web-Loading/.env')
 
   print(setup_application_site(branch))
   sys.exit(0)

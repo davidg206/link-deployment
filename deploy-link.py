@@ -8,25 +8,6 @@ import portlookup
 from portlookup.portlookup import find_dedicated_server_port
 from dotenv import load_dotenv
 
-def find_port_number_in_file(file_path, pattern):
-    with open(file_path, 'r') as file:
-        for line in file:
-            match = re.search(pattern, line)
-            if match:
-                port_number = int(match.group(1))
-                return port_number
-    return None
-
-def is_port_in_use(port):
-  try:
-      # Execute the 'sudo lsof -i:port' command and capture the output
-      result = subprocess.check_output(["sudo", "lsof", "-i:{}".format(port)], stderr=subprocess.STDOUT)
-      # If there is output, the port is in use
-      return True
-  except subprocess.CalledProcessError as e:
-      # If the command returns a non-zero exit code, there is no output, and the port is not in use
-      return False
-
 def find_available_port(start_port, end_port):
     for port in range(start_port, end_port + 1):
       if not is_port_in_use(port):

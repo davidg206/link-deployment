@@ -4,25 +4,9 @@ import socket
 import sys
 import os
 import re
-
-def is_port_in_use(port):
-  try:
-      # Execute the 'sudo lsof -i:port' command and capture the output
-      result = subprocess.check_output(["sudo", "lsof", "-i:{}".format(port)], stderr=subprocess.STDOUT)
-      # If there is output, the port is in use
-      return True
-  except subprocess.CalledProcessError as e:
-      # If the command returns a non-zero exit code, there is no output, and the port is not in use
-      return False
-
-def find_port_number_in_file(file_path, pattern):
-    with open(file_path, 'r') as file:
-        for line in file:
-            match = re.search(pattern, line)
-            if match:
-                port_number = int(match.group(1))
-                return port_number
-    return None
+import portlookup
+from portlookup.portlookup import find_dedicated_server_port
+from dotenv import load_dotenv
 
 def find_available_port(start_port, end_port):
     for port in range(start_port, end_port + 1):
@@ -100,7 +84,7 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/Palatial-Web-Loading
-ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/{application} REACT_APP_DEDICATED_SERVER_PORT={dedicated_server_port} npm run start'
+ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/{application} npm run start'
 Restart=always
 
 [Install]
@@ -132,7 +116,7 @@ def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_available_port(7777, 10777)
+    dedicated_server_port = find_dedicated_server_port(application, 7777, 10777)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""
@@ -143,7 +127,7 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/servers/{application}/LinuxServer/
-ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
+ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh'
 Restart=always
 
 [Install]
@@ -157,8 +141,7 @@ WantedBy=multi-user.target
     subprocess.run(['sudo', 'systemctl', 'enable', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'])
 
-    return dedicated_server_port
-  return find_port_number_in_file(file_path, r'-port=(\d+)')
+  return os.environ['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
 
 if __name__ == "__main__":
   if len(sys.argv) < 3:

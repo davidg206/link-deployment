@@ -4,7 +4,8 @@ import socket
 import sys
 import os
 import re
-import portLookup
+import portlookup
+from portlookup.portlookup import find_dedicated_server_port
 from dotenv import load_dotenv
 
 def find_port_number_in_file(file_path, pattern):
@@ -61,20 +62,7 @@ server {{
 }}
 """
 
-  if os.path.exists(file_path):
-    with open(file_path, 'r') as file:
-      content = file.read()
-
-    # Find the position of the last '}' character in the content
-    last_brace_position = content.rfind('}')
-
-    if last_brace_position != -1:
-      # Insert the text before the last '}' character
-      updated_content = content[:last_brace_position] + new_location_block + content[last_brace_position:]
-
-      with open(file_path, 'w') as file:
-        file.write(updated_content)
-  else:
+  if not os.path.exists(file_path):
     if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
       subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -133,6 +121,9 @@ def setup_dedicated_server(branch):
   file_path = f'/etc/systemd/system/server_{branch}.service'
 
   if not os.path.exists(file_path):
+    dedicated_server_port = find_dedicated_server_port(branch, 7777, 10777)
+    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
     service_file = f"""
 [Unit]
 Description=Dedicated server for {branch}
@@ -140,9 +131,8 @@ After=network.target
 
 [Service]
 User=david
-Environment=PORT=$(python3 -c "from portLookup import findDedicatedServerPort; print(findDedicatedServerPort({branch}, 7777, 10777))")
 WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
-ExecStart=/bin/bash -c 'sudo ufw allow $PORT/udp && chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port=$PORT'
+ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh'
 Restart=always
 
 [Install]

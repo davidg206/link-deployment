@@ -26,11 +26,13 @@ def change_env_variable(env_file_path, key, new_value):
         for k, v in os.environ.items():
             f.write(f"{k}={v}\n")
 
-def findDedicatedServerPort(application, min, max):
+def find_dedicated_server_port(application, min, max):
   key = f'REACT_APP_DEDICATED_SERVER_PORT_{application.upper()}'
-  port = os.environ[key]
+  port = os.environ.get(key, None)
   if port and not is_port_in_use(port):
     return port
   port = find_available_port(min, max)
   change_env_variable('/home/david/Palatial-Web-Loading/.env', key, str(port))
+  command = ['sudo', 'ufw', 'allow', f'{port}/udp']
+  subprocess.run(command)
   return port

@@ -1,7 +1,0 @@
-setup.py
-portlookup/__init__.py
-portlookup/portlookup.py
-portlookup.egg-info/PKG-INFO
-portlookup.egg-info/SOURCES.txt
-portlookup.egg-info/dependency_links.txt
-portlookup.egg-info/top_level.txt

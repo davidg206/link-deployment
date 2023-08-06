@@ -5,14 +5,8 @@ import sys
 import os
 import re
 import portlookup
-from portlookup.portlookup import find_dedicated_server_port
+from portlookup.portlookup import find_dedicated_server_port, find_available_port
 from dotenv import load_dotenv
-
-def find_available_port(start_port, end_port):
-    for port in range(start_port, end_port + 1):
-      if not is_port_in_use(port):
-        return port
-    raise ValueError(f"No available port found in the range {start_port} - {end_port}")
 
 def setup_application_site(branch, application, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.conf'

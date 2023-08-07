@@ -109,7 +109,7 @@ def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_dedicated_server_port(application, 7777, 10777)
+    dedicated_server_port = find_dedicated_server_port(application, 7777, 10777, dotenv_values('/home/david/Palatial-Web-Loading/.env'))
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""

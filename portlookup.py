@@ -1,5 +1,6 @@
 import subprocess
 import os
+import sys
 
 def is_port_in_use(port):
   try:
@@ -17,22 +18,21 @@ def find_available_port(start_port, end_port):
         return port
     raise ValueError(f"No available port found in the range {start_port} - {end_port}")
 
-def change_env_variable(env_file_path, key, new_value):
+def change_env_variable(env_path, key, new_value, env_vars):
     # Update the value in memory
-    os.environ[key] = new_value
+    env_vars[key] = new_value
 
     # Write the changes back to the .env file
-    with open(env_file_path, 'w') as f:
-        for k, v in os.environ.items():
+    with open(env_path, 'w') as f:
+        for k, v in env_vars.items():
             f.write(f"{k}={v}\n")
 
-def find_dedicated_server_port(application, min, max):
+def find_dedicated_server_port(application, min, max, env_vars):
+  env_vars = load_dotenv(dotenv_path='/home/david/Palatial-Web-Loading/.env')
   key = f'REACT_APP_DEDICATED_SERVER_PORT_{application.upper()}'
-  port = os.environ.get(key, None)
-  if port and not is_port_in_use(port):
-    return port
   port = find_available_port(min, max)
-  change_env_variable('/home/david/Palatial-Web-Loading/.env', key, str(port))
+  print('found available port: ' + str(port))
+  change_env_variable('/home/david/Palatial-Web-Loading/.env', key, str(port), env_vars)
   command = ['sudo', 'ufw', 'allow', f'{port}/udp']
   subprocess.run(command)
   return port

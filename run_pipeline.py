@@ -5,7 +5,6 @@ import sys
 import os
 import re
 import portlookup
-from portlookup.portlookup import find_dedicated_server_port, find_available_port
 from dotenv import load_dotenv
 
 def setup_application_site(branch, application, log=False):

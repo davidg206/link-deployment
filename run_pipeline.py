@@ -5,14 +5,58 @@ import sys
 import os
 import re
 import portlookup
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
+
+def has_location_block(file_path, search_string):
+  with open(file_path, 'r') as file:
+    for line in file:
+      if f"location /{search_string}" in line:
+        return True
+  return False
+
+def find_port_for_location(file_path, search_string):
+  try:
+    with open(file_path, 'r') as file:
+      content = file.read()
+
+    pattern = r"location\s+(/[^{\s]+)\s*{[^}]+proxy_pass\s+http://localhost:(\d+);"
+
+    matches = re.findall(pattern, content)
+    for location, port in matches:
+      if location[1:] == search_string:
+        return port
+    return None
+  except Exception as e:
+    print(f"An error occurred: {e}")
+    return None
+
+def get_app_info(branch, application):
+  config_file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+
+  webport = find_port_for_location(config_file_path, application)
+  dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{application.upper()}')
+
+  return f"""
+{{
+  branch: {branch},
+  application: {application},
+  url: https://{branch}.palatialxr.com/{application},
+  webServerPort: {webport},
+  dedicatedServerPort: {dserverport},
+  unrealWebsocketEndpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{application}/ws,
+}}
+"""
 
 def setup_application_site(branch, application, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.conf'
   web_server_port = None
   dedicated_server_port = None
 
-  web_server_port = find_available_port(3000, 6000)
+  if has_location_block(file_path, application):
+    return get_app_info(branch, application)
+
+  web_server_port = portlookup.find_available_port(3000, 6000)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
@@ -66,8 +110,8 @@ server {{
   file_path = f'/etc/systemd/system/dom_{application}.service'
 
   # Make dedicated server first to get the port number
-
   dedicated_server_port = setup_dedicated_server(application)
+
   # Now set up service file for the web server
   service_file = f"""
 [Unit]
@@ -93,23 +137,14 @@ WantedBy=multi-user.target
 
   current_datetime = datetime.datetime.now()
   formatted_datetime = current_datetime.strftime("%d/%m/%Y %H:%M:%S")
-  return f"""
-{{
-  branch: {branch},
-  application: {application},
-  url: https://{branch}.palatialxr.com/{application},
-  palatial_webserver_port: 0000:{web_server_port},
-  palatial_dedicated_server_port: 0000:{dedicated_server_port},
-  unreal_websocket_endpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{application}/ws,
-  created: {formatted_datetime}
-}}
-"""
+  return get_app_info(branch, application)
 
 def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
+  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_dedicated_server_port(application, 7777, 10777, dotenv_values('/home/david/Palatial-Web-Loading/.env'))
+    dedicated_server_port = portlookup.find_dedicated_server_port(application, 7777, 10777, values)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""
@@ -134,7 +169,7 @@ WantedBy=multi-user.target
     subprocess.run(['sudo', 'systemctl', 'enable', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'])
 
-  return os.environ['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
+  return values['REACT_APP_DEDICATED_SERVER_PORT_' + application.upper()]
 
 if __name__ == "__main__":
   if len(sys.argv) < 3:

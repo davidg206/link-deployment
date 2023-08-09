@@ -5,15 +5,55 @@ import sys
 import os
 import re
 import portlookup
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
+
+def has_location_block(file_path, search_string):
+  return os.path.exists(file_path)
+
+def find_port_for_location(file_path, search_string):
+  try:
+    with open(file_path, 'r') as file:
+      content = file.read()
+
+    port_pattern = r'proxy_pass http://localhost:(\d+);'
+
+    matches = re.search(port_pattern, content)
+
+    if matches:
+      return int(matches.group(1))
+
+    return None
+  except Exception as e:
+    print(f"An error occurred: {e}")
+    return None
+
+def get_app_info(branch):
+  config_file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+
+  webport = find_port_for_location(config_file_path, branch)
+  dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{branch.upper()}')
+
+  return f"""
+{{
+  branch: {branch},
+  url: https://{branch}.palatialxr.com/,
+  webServerPort: {webport},
+  dedicatedServerPort: {dserverport},
+  unrealWebsocketEndpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{branch}/ws,
+}}
+"""
 
 def setup_application_site(branch, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.conf'
   web_server_port = None
   dedicated_server_port = None
 
-  web_server_port = find_available_port(3000, 6000)
-  subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  if has_location_block(file_path, branch):
+    return get_app_info(branch)
+
+  web_server_port = portlookup.find_available_port(3000, 6000)
+  subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
   new_location_block = f"""
   location / {{
@@ -39,7 +79,7 @@ server {{
   if not os.path.exists(file_path):
     if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
-      subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+      subprocess.run(make_certificate, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     with open(file_path, 'w') as file:
       file.write(new_server_block)
@@ -75,28 +115,18 @@ WantedBy=multi-user.target
     file.write(service_file)
 
   subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
   subprocess.run(['sudo', 'systemctl', 'start', f'dom_{branch}'])
 
-  current_datetime = datetime.datetime.now()
-  formatted_datetime = current_datetime.strftime("%d/%m/%Y %H:%M:%S")
-  return f"""
-{{
-  branch: {branch},
-  url: https://{branch}.palatialxr.com/,
-  palatial_webserver_port: 0000:{web_server_port},
-  palatial_dedicated_server_port: 0000:{dedicated_server_port},
-  unreal_websocket_endpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{branch}/ws,
-  created: {formatted_datetime}
-}}
-"""
+  return get_app_info(branch)
 
 def setup_dedicated_server(branch):
   file_path = f'/etc/systemd/system/server_{branch}.service'
+  env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_dedicated_server_port(branch, 7777, 10777, dotenv_values('/home/david/Palatial-Web-Loading/.env'))
-    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    dedicated_server_port = portlookup.find_dedicated_server_port(branch, 7777, 10777, env_vars)
+    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     service_file = f"""
 [Unit]
@@ -117,10 +147,10 @@ WantedBy=multi-user.target
       file.write(service_file)
 
     subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
 
-  return os.environ['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
+  return env_vars['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

@@ -73,7 +73,7 @@ server {{
   ssl_certificate /etc/letsencrypt/live/{branch}.palatialxr.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{branch}.palatialxr.com/privkey.pem;
 
-  root /home/david/Palatial-Web-Loading/;
+  root /home/david/Palatial-Web-Loading/build/;
   index index.html;
 
   {new_location_block}
@@ -121,7 +121,8 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/Palatial-Web-Loading
-ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/{application} npm run start'
+#ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/{application} PORT={web_server_port} npm run start'
+ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/{application} serve -s build -l {web_server_port}'
 Restart=always
 
 [Install]

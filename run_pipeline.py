@@ -76,6 +76,10 @@ server {{
   root /home/david/Palatial-Web-Loading/build/;
   index index.html;
 
+  location / {
+    return 404;
+  }
+
   {new_location_block}
 }}
 """
@@ -180,5 +184,11 @@ if __name__ == "__main__":
   branch = sys.argv[1]
   application = sys.argv[2]
 
-  print(setup_application_site(branch, application))
+  output = setup_application_site(branch, application)
+
+  path = os.path.expanduser("~/Palatial-Web-Loading/")
+  os.chdir(path)
+  subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
+
+  print(output)
   sys.exit(0)

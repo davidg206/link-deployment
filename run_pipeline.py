@@ -8,6 +8,8 @@ import portlookup
 from dotenv import load_dotenv, dotenv_values
 
 def has_location_block(file_path, search_string):
+  if not os.path.exists(file_path):
+    return False
   with open(file_path, 'r') as file:
     for line in file:
       if f"location /{search_string}" in line:
@@ -56,7 +58,8 @@ def setup_application_site(branch, application, log=False):
   if has_location_block(file_path, application):
     return get_app_info(branch, application)
 
-  web_server_port = portlookup.find_available_port(3000, 6000)
+  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+  web_server_port = portlookup.find_available_port(values)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
@@ -76,9 +79,15 @@ server {{
   root /home/david/Palatial-Web-Loading/build/;
   index index.html;
 
-  location / {
+  # Handle requests to root path (/) with a 404 response
+  location = / {{
     return 404;
-  }
+  }}
+
+  # Serve the index.html for other requests
+  location / {{
+    try_files $uri $uri/ /index.html;
+  }}
 
   {new_location_block}
 }}
@@ -149,7 +158,7 @@ def setup_dedicated_server(application):
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(application, 7777, 10777, values)
+    dedicated_server_port = portlookup.find_dedicated_server_port(application, values)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""

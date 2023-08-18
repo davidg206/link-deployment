@@ -125,7 +125,7 @@ def setup_dedicated_server(branch):
   env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(branch, 7777, 10777, env_vars)
+    dedicated_server_port = portlookup.find_dedicated_server_port(branch, 7778, 10778, env_vars)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     service_file = f"""

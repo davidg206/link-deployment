@@ -52,7 +52,7 @@ def setup_application_site(branch, log=False):
   if has_location_block(file_path, branch):
     return get_app_info(branch)
 
-  web_server_port = portlookup.find_available_port(3000, 6000)
+  web_server_port = portlookup.find_available_port_range(3000, 6000)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
   new_location_block = f"""
@@ -125,7 +125,7 @@ def setup_dedicated_server(branch):
   env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(branch, 7778, 10778, env_vars)
+    dedicated_server_port = portlookup.find_dedicated_server_port(branch, env_vars)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     service_file = f"""

@@ -58,8 +58,7 @@ def setup_application_site(branch, application, log=False):
   if has_location_block(file_path, application):
     return get_app_info(branch, application)
 
-  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
-  web_server_port = portlookup.find_available_port(values)
+  web_server_port = portlookup.find_available_port_range(3000, 6000)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
@@ -82,11 +81,6 @@ server {{
   # Handle requests to root path (/) with a 404 response
   location = / {{
     return 404;
-  }}
-
-  # Serve the index.html for other requests
-  location / {{
-    try_files $uri $uri/ /index.html;
   }}
 
   {new_location_block}
@@ -169,7 +163,7 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/servers/{application}/LinuxServer/
-ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh'
+ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
 Restart=always
 
 [Install]

@@ -12,12 +12,18 @@ def is_port_in_use(port):
       # If the command returns a non-zero exit code, there is no output, and the port is not in use
       return False
 
+def find_available_port_range(start_port, end_port):
+    for port in range(start_port, end_port + 1):
+      if not is_port_in_use(port):
+        return port
+    raise ValueError(f"No available port found in the range {start_port} - {end_port}")
+
 def find_available_port(data):
   # Extract keys and values for fields starting with REACT_APP_DEDICATED_SERVER_PORT_
   port_values = [value for key, value in data.items() if key.startswith("REACT_APP_DEDICATED_SERVER_PORT_")]
 
   # Filter out non-integer values
-  int_values = [value for value in port_values if isinstance(value, int)]
+  int_values = [int(value) for value in port_values]
 
   # Sort the integer values
   sorted_values = sorted(int_values)

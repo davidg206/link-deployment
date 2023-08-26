@@ -5,8 +5,11 @@ cd "$SCRIPT_DIR"
 
 sudo systemctl stop dom_$1
 sudo systemctl disable dom_$1
-sudo rm /etc/systemd/system/dom_${1}.service
+if [ -f "/etc/systemd/system/dom_${1}.service" ]; then
+  sudo rm /etc/systemd/system/dom_${1}.service
+fi
 sudo systemctl daemon-reload
-if [ -f "/etc/nginx/sites-available/$1.conf" ]; then
-  rm "/etc/nginx/sites-available/$1.conf"
-  rm "/etc/nginx/sites-enabled/$1.conf"
+#if [ -f "/etc/nginx/sites-available/$1.conf" ]; then
+  #sudo rm "/etc/nginx/sites-available/$1.conf"
+  #sudo rm "/etc/nginx/sites-enabled/$1.conf"
+#fi

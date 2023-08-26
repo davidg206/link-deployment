@@ -46,18 +46,14 @@ def get_app_info(branch):
 
 def setup_application_site(branch, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.app'
-  web_server_port = None
   dedicated_server_port = None
 
   if has_location_block(file_path, branch):
     return get_app_info(branch)
 
-  web_server_port = find_available_port_range(3000, 6000)
-  subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
-
   new_location_block = f"""
   location = / {{
-    proxy_pass http://localhost:{web_server_port};
+    proxy_pass http://localhost:3000;
   }}
 """
 
@@ -71,6 +67,10 @@ server {{
 
   root /home/david/Palatial-Web-Loading/;
   index index.html;
+
+  location ~ ^/static/ {{
+    proxy_pass http://localhost:3000;
+  }}
 
   {new_location_block}
 }}
@@ -93,31 +93,7 @@ server {{
   file_path = f'/etc/systemd/system/dom_{branch}.service'
 
   # Make dedicated server first to get the port number
-  dedicated_server_port = setup_dedicated_server(branch)
-
-  # Now set up service file for the web server
-  service_file = f"""
-[Unit]
-Description=Web server for {branch}
-After=network.target
-
-[Service]
-User=david
-WorkingDirectory=/home/david/Palatial-Web-Loading
-#ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ npm run start'
-ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/ serve -s build -l {web_server_port}'
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-  with open(file_path, 'w') as file:
-    file.write(service_file)
-
-  subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
-  subprocess.run(['sudo', 'systemctl', 'start', f'dom_{branch}'])
+  setup_dedicated_server(branch)
 
   return get_app_info(branch)
 

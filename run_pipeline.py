@@ -52,18 +52,14 @@ def get_app_info(branch, application):
 
 def setup_application_site(branch, application, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.branch'
-  web_server_port = None
   dedicated_server_port = None
 
   if has_location_block(file_path, application):
     return get_app_info(branch, application)
 
-  web_server_port = find_available_port_range(3000, 6000)
-  subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
   new_location_block = f"""
   location = /{application} {{
-    proxy_pass http://localhost:{web_server_port};
+    proxy_pass http://localhost:3000;
   }}
 """
 
@@ -75,12 +71,15 @@ server {{
   ssl_certificate /etc/letsencrypt/live/{branch}.palatialxr.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{branch}.palatialxr.com/privkey.pem;
 
-  root /home/david/Palatial-Web-Loading/build/;
+  root /home/david/Palatial-Web-Loading/;
   index index.html;
 
-  # Handle requests to root path (/) with a 404 response
   location = / {{
     return 404;
+  }}
+
+  location ~ ^/static/ {{
+    proxy_pass http://localhost:3000;
   }}
 
   {new_location_block}
@@ -113,38 +112,6 @@ server {{
   reload = ['sudo', 'nginx', '-s', 'reload']
   subprocess.run(reload)
 
-  # Set up web service file
-  file_path = f'/etc/systemd/system/dom_{application}.service'
-
-  # Make dedicated server first to get the port number
-  dedicated_server_port = setup_dedicated_server(application)
-
-  # Now set up service file for the web server
-  service_file = f"""
-[Unit]
-Description=Web server for {application}
-After=network.target
-
-[Service]
-User=david
-WorkingDirectory=/home/david/Palatial-Web-Loading
-#ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/{application} PORT={web_server_port} npm run start'
-ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/{application} serve -s build -l {web_server_port}'
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-  with open(file_path, 'w') as file:
-    file.write(service_file)
-
-  subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-  subprocess.run(['sudo', 'systemctl', 'enable', f'dom_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-  subprocess.run(['sudo', 'systemctl', 'start', f'dom_{application}'])
-
-  current_datetime = datetime.datetime.now()
-  formatted_datetime = current_datetime.strftime("%d/%m/%Y %H:%M:%S")
   return get_app_info(branch, application)
 
 def setup_dedicated_server(application):

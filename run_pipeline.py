@@ -112,6 +112,8 @@ server {{
   reload = ['sudo', 'nginx', '-s', 'reload']
   subprocess.run(reload)
 
+  setup_dedicated_server(application)
+
   return get_app_info(branch, application)
 
 def setup_dedicated_server(application):

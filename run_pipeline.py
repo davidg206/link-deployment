@@ -4,7 +4,7 @@ import socket
 import sys
 import os
 import re
-import portlookup
+from portlookup.portlookup import find_available_port, find_available_port_range, find_dedicated_server_port
 from dotenv import load_dotenv, dotenv_values
 
 def has_location_block(file_path, search_string):
@@ -21,7 +21,7 @@ def find_port_for_location(file_path, search_string):
     with open(file_path, 'r') as file:
       content = file.read()
 
-    pattern = r"location\s+(/[^{\s]+)\s*{[^}]+proxy_pass\s+http://localhost:(\d+);"
+    pattern = r"location\s+=\s+(/[^{\s]+)\s*{[^}]+proxy_pass\s+http://localhost:(\d+);"
 
     matches = re.findall(pattern, content)
     for location, port in matches:
@@ -33,7 +33,7 @@ def find_port_for_location(file_path, search_string):
     return None
 
 def get_app_info(branch, application):
-  config_file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  config_file_path = f'/etc/nginx/sites-available/{branch}.branch'
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   webport = find_port_for_location(config_file_path, application)
@@ -51,18 +51,18 @@ def get_app_info(branch, application):
 """
 
 def setup_application_site(branch, application, log=False):
-  file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  file_path = f'/etc/nginx/sites-available/{branch}.branch'
   web_server_port = None
   dedicated_server_port = None
 
   if has_location_block(file_path, application):
     return get_app_info(branch, application)
 
-  web_server_port = portlookup.find_available_port_range(3000, 6000)
+  web_server_port = find_available_port_range(3000, 6000)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
   new_location_block = f"""
-  location /{application} {{
+  location = /{application} {{
     proxy_pass http://localhost:{web_server_port};
   }}
 """
@@ -101,14 +101,14 @@ server {{
       with open(file_path, 'w') as file:
         file.write(updated_content)
   else:
-    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
+    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.branch'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
       subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     with open(file_path, 'w') as file:
       file.write(new_server_block)
 
-    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.conf', '/etc/nginx/sites-enabled/'])
+    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.branch', '/etc/nginx/sites-enabled/'])
 
   reload = ['sudo', 'nginx', '-s', 'reload']
   subprocess.run(reload)
@@ -152,7 +152,7 @@ def setup_dedicated_server(application):
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(application, values)
+    dedicated_server_port = find_dedicated_server_port(application, values)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""

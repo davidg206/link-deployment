@@ -4,7 +4,7 @@ import socket
 import sys
 import os
 import re
-import portlookup
+from portlookup.portlookup import find_available_port, find_available_port_range, find_dedicated_server_port
 from dotenv import load_dotenv, dotenv_values
 
 def has_location_block(file_path, search_string):
@@ -28,7 +28,7 @@ def find_port_for_location(file_path, search_string):
     return None
 
 def get_app_info(branch):
-  config_file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  config_file_path = f'/etc/nginx/sites-available/{branch}.app'
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   webport = find_port_for_location(config_file_path, branch)
@@ -45,18 +45,18 @@ def get_app_info(branch):
 """
 
 def setup_application_site(branch, log=False):
-  file_path = f'/etc/nginx/sites-available/{branch}.conf'
+  file_path = f'/etc/nginx/sites-available/{branch}.app'
   web_server_port = None
   dedicated_server_port = None
 
   if has_location_block(file_path, branch):
     return get_app_info(branch)
 
-  web_server_port = portlookup.find_available_port_range(3000, 6000)
+  web_server_port = find_available_port_range(3000, 6000)
   subprocess.run(['sudo', 'ufw', 'allow', f'{web_server_port}/tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
   new_location_block = f"""
-  location / {{
+  location = / {{
     proxy_pass http://localhost:{web_server_port};
   }}
 """
@@ -77,14 +77,14 @@ server {{
 """
 
   if not os.path.exists(file_path):
-    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
+    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.app'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
       subprocess.run(make_certificate, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     with open(file_path, 'w') as file:
       file.write(new_server_block)
 
-    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.conf', '/etc/nginx/sites-enabled/'])
+    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.app', '/etc/nginx/sites-enabled/'])
 
   reload = ['sudo', 'nginx', '-s', 'reload']
   subprocess.run(reload)
@@ -104,7 +104,8 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/Palatial-Web-Loading
-ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ npm run start'
+#ExecStart=/bin/bash -c 'PORT={web_server_port} PUBLIC_URL=https://{branch}.palatialxr.com/ npm run start'
+ExecStart=/bin/bash -c 'PUBLIC_URL=https://{branch}.palatialxr.com/ serve -s build -l {web_server_port}'
 Restart=always
 
 [Install]
@@ -125,7 +126,7 @@ def setup_dedicated_server(branch):
   env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(branch, env_vars)
+    dedicated_server_port = find_dedicated_server_port(branch, env_vars)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
 
     service_file = f"""
@@ -136,7 +137,7 @@ After=network.target
 [Service]
 User=david
 WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
-ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh'
+ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
 Restart=always
 
 [Install]

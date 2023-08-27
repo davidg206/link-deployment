@@ -84,10 +84,10 @@ server {{
     with open(file_path, 'w') as file:
       file.write(new_server_block)
 
-    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.app', '/etc/nginx/sites-enabled/'])
+    subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.app', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   reload = ['sudo', 'nginx', '-s', 'reload']
-  subprocess.run(reload)
+  subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # Set up web service file
   file_path = f'/etc/systemd/system/dom_{branch}.service'
@@ -123,9 +123,9 @@ WantedBy=multi-user.target
     with open(file_path, 'w') as file:
       file.write(service_file)
 
-    subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
+    subprocess.run(['sudo', 'systemctl', 'daemon-reload'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
+    subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   return env_vars['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
 

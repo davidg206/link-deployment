@@ -107,10 +107,10 @@ server {{
     with open(file_path, 'w') as file:
       file.write(new_server_block)
 
-    subprocess.check_output(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.branch', '/etc/nginx/sites-enabled/'])
+    subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.branch', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   reload = ['sudo', 'nginx', '-s', 'reload']
-  subprocess.run(reload)
+  subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   setup_dedicated_server(application)
 
@@ -121,11 +121,15 @@ def setup_dedicated_server(application):
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(application, values)
+    dedicated_server_port = portlookup.find_dedicated_server_port(values)
+
+    key = f'REACT_APP_DEDICATED_SERVER_PORT_{application.upper()}'
+    values[key] = str(dedicated_server_port)
+    portlookup.reload_env_file(file_path, values)
+
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    service_file = f"""
-[Unit]
+    service_file = f"""[Unit]
 Description=Dedicated server for {application}
 After=network.target
 
@@ -142,9 +146,10 @@ WantedBy=multi-user.target
     with open(file_path, 'w') as file:
       file.write(service_file)
 
-    subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
+    subprocess.run(['sudo', 'systemctl', 'daemon-reload'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     subprocess.run(['sudo', 'systemctl', 'enable', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'])
+    if os.path.exists(f'/home/david/servers/{application}/LinuxServer'):
+      subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   return values['REACT_APP_DEDICATED_SERVER_PORT_' + application.upper()]
 

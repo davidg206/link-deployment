@@ -1,5 +1,5 @@
 import subprocess
-from portlookup.portlookup import free_port, find_dedicated_server_port
+from portlookup import portlookup
 from dotenv import dotenv_values
 import sys
 import os
@@ -15,9 +15,9 @@ if __name__ == "__main__":
   stop = ['sudo', 'systemctl', 'stop', f'server_{server}']
   subprocess.run(stop)
 
-  free_port(server, os.path.expanduser("~/Palatial-Web-Loading/.env"))
+  portlookup.free_port(server, os.path.expanduser("~/Palatial-Web-Loading/.env"))
 
-  port = find_dedicated_server_port(server, existing_env_vars)
+  port = portlookup.find_dedicated_server_port(server, existing_env_vars)
   print(f"New port: {port}")
 
   start = ['sudo', 'systemctl', 'start', f'server_{server}']

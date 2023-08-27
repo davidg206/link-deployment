@@ -4,7 +4,7 @@ import socket
 import sys
 import os
 import re
-from portlookup.portlookup import find_available_port, find_available_port_range, find_dedicated_server_port
+from portlookup import portlookup
 from dotenv import load_dotenv, dotenv_values
 
 def has_location_block(file_path, search_string):
@@ -77,9 +77,9 @@ server {{
 """
 
   if not os.path.exists(file_path):
-    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.app'):
+    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
-      subprocess.run(make_certificate, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+      subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     with open(file_path, 'w') as file:
       file.write(new_server_block)
@@ -102,8 +102,8 @@ def setup_dedicated_server(branch):
   env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_dedicated_server_port(branch, env_vars)
-    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+    dedicated_server_port = portlookup.find_dedicated_server_port(branch, env_vars)
+    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""
 [Unit]
@@ -114,7 +114,7 @@ After=network.target
 User=david
 WorkingDirectory=/home/david/servers/{branch}/LinuxServer/
 ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
-Restart=always
+Restart=on-success
 
 [Install]
 WantedBy=multi-user.target
@@ -124,7 +124,7 @@ WantedBy=multi-user.target
       file.write(service_file)
 
     subprocess.run(['sudo', 'systemctl', 'daemon-reload'])
-    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'])
 
   return env_vars['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]

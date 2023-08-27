@@ -4,8 +4,8 @@ import socket
 import sys
 import os
 import re
-from portlookup.portlookup import find_available_port, find_available_port_range, find_dedicated_server_port
-from dotenv import load_dotenv, dotenv_values
+from portlookup import portlookup
+from dotenv import dotenv_values
 
 def has_location_block(file_path, search_string):
   if not os.path.exists(file_path):
@@ -100,7 +100,7 @@ server {{
       with open(file_path, 'w') as file:
         file.write(updated_content)
   else:
-    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.branch'):
+    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
       make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
       subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
@@ -121,7 +121,7 @@ def setup_dedicated_server(application):
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   if not os.path.exists(file_path):
-    dedicated_server_port = find_dedicated_server_port(application, values)
+    dedicated_server_port = portlookup.find_dedicated_server_port(application, values)
     subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     service_file = f"""
@@ -133,7 +133,7 @@ After=network.target
 User=david
 WorkingDirectory=/home/david/servers/{application}/LinuxServer/
 ExecStart=/bin/bash -c 'chmod +x ThirdTurn_TemplateServer.sh && ./ThirdTurn_TemplateServer.sh -port={dedicated_server_port}'
-Restart=always
+Restart=on-success
 
 [Install]
 WantedBy=multi-user.target

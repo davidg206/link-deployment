@@ -1,4 +1,4 @@
-from portlookup.portlookup import free_port
+from portlookup import portlookup
 import sys
 import os
 from dotenv import dotenv_values
@@ -8,4 +8,4 @@ if __name__ == "__main__":
     print("error: python freeport.py <application>")
 
   app = sys.argv[1]
-  free_port(app, os.path.expanduser("~/Palatial-Web-Loading/.env"))
+  portlookup.free_port(app, os.path.expanduser("~/Palatial-Web-Loading/.env"))

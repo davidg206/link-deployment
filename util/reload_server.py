@@ -20,7 +20,7 @@ if __name__ == "__main__":
   portlookup.free_port(server, path)
 
   # Find unused port
-  port = portlookup.find_dedicated_server_port(server, existing_env_vars)
+  port = portlookup.find_dedicated_server_port(existing_env_vars)
   print(f"New port: {port}")
 
   # Add new port as key in .env file

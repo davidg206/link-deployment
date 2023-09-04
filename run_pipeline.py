@@ -8,9 +8,12 @@ import json
 from portlookup import portlookup
 from dotenv import dotenv_values
 
-def has_location_block(file_path, search_string):
+def has_location_block(file_path, search_string, is_domain):
   if not os.path.exists(file_path):
     return False
+  if not is_domain:
+    return True
+
   with open(file_path, 'r') as file:
     for line in file:
       if f"location = /{search_string}" in line:
@@ -33,30 +36,43 @@ def find_port_for_location(file_path, search_string):
     print(f"An error occurred: {e}")
     return None
 
-def get_app_info(branch, application):
-  config_file_path = f'/etc/nginx/sites-available/{branch}.branch'
+def get_app_info(branch, app, is_domain):
+  ext = 'branch' if is_domain else 'app'
+
+  config_file_path = f'/etc/nginx/sites-available/{app}.{ext}'
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
-  webport = find_port_for_location(config_file_path, application)
-  dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{application.upper()}')
+  dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{app.upper()}')
 
   return {
-    "branch": branch,
-    "application": application,
-    "url": f"https://{branch}.palatialxr.com/{application}",
-    "webServerPort": webport,
+    "branch": "n/a" if not is_domain else branch,
+    "application": app,
+    "url": f"https://{branch}.palatialxr.com/{'' if not is_domain else app}",
+    "webServerPort": 3000,
     "dedicatedServerPort": dserverport,
-    "unrealWebsocketEndpoint": f"wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{application}/ws",
+    "unrealWebsocketEndpoint": f"wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{app}/ws",
   }
 
-def setup_application_site(branch, application, log=False):
-  file_path = f'/etc/nginx/sites-available/{branch}.branch'
+def setup_application_site(config, is_domain=False):
+  branch = config.get("branch")
+  application = config.get("application")
 
-  setup_dedicated_server(application)
+  if is_domain:
+    (ext, app) = ('branch', application)
+  else:
+    (ext, app) = ('app', branch)
 
-  if not has_location_block(file_path, application):
+  setup_dedicated_server(app)
+
+  file_path = f'/etc/nginx/sites-available/{branch}.{ext}'
+
+  if not has_location_block(file_path, app, is_domain):
     new_location_block = f"""
     location = /{application} {{
+      proxy_pass http://localhost:3000;
+    }}
+""" if is_domain else """
+    location = / {{
       proxy_pass http://localhost:3000;
     }}
 """
@@ -85,18 +101,19 @@ server {{
 """
 
     if os.path.exists(file_path):
-      with open(file_path, 'r') as file:
-        content = file.read()
+      if is_domain:
+        with open(file_path, 'r') as file:
+          content = file.read()
 
-      # Find the position of the last '}' character in the content
-      last_brace_position = content.rfind('}')
+        # Find the position of the last '}' character in the content
+        last_brace_position = content.rfind('}')
 
-      if last_brace_position != -1:
-        # Insert the text before the last '}' character
-        updated_content = content[:last_brace_position] + new_location_block + content[last_brace_position:]
+        if last_brace_position != -1:
+          # Insert the text before the last '}' character
+          updated_content = content[:last_brace_position] + new_location_block + content[last_brace_position:]
 
-        with open(file_path, 'w') as file:
-          file.write(updated_content)
+          with open(file_path, 'w') as file:
+            file.write(updated_content)
     else:
       if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
         make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
@@ -105,12 +122,12 @@ server {{
       with open(file_path, 'w') as file:
         file.write(new_server_block)
 
-      subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.branch', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.{ext}', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     reload = ['sudo', 'nginx', '-s', 'reload']
     subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  return json.dumps(get_app_info(branch, application), indent=2)
+  return json.dumps(get_app_info(branch, app, is_domain), indent=2)
 
 def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
@@ -157,14 +174,18 @@ WantedBy=multi-user.target
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
 
 if __name__ == "__main__":
-  if len(sys.argv) < 3:
-    print('python run_pipeline.py <branch> <application>')
+  if len(sys.argv) < 2:
+    print('python run_pipeline.py <branch [application] or application>')
     sys.exit(1)
 
-  branch = sys.argv[1]
-  application = sys.argv[2]
+  config = {}
 
-  output = setup_application_site(branch, application)
+  config["branch"] = sys.argv[1]
+  if len(sys.argv) == 3:
+    config["application"] = sys.argv[2]
+
+  output = setup_application_site(config, is_domain=config.get('application') != None)
 
   print(output)
   sys.exit(0)
+

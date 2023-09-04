@@ -5,5 +5,7 @@ cd "$SCRIPT_DIR"
 
 sudo systemctl stop server_$1
 sudo systemctl disable server_$1
-sudo rm /etc/systemd/system/server_${1}.service
+if [ -f "/etc/systemd/system/server_${1}.service" ]; then
+  sudo rm /etc/systemd/system/server_${1}.service
+fi
 sudo systemctl daemon-reload

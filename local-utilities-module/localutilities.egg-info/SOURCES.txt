@@ -1,0 +1,7 @@
+setup.py
+localutilities/__init__.py
+localutilities/localutilities.py
+localutilities.egg-info/PKG-INFO
+localutilities.egg-info/SOURCES.txt
+localutilities.egg-info/dependency_links.txt
+localutilities.egg-info/top_level.txt

@@ -4,6 +4,7 @@ import socket
 import sys
 import os
 import re
+import json
 from portlookup import portlookup
 from dotenv import load_dotenv, dotenv_values
 
@@ -34,30 +35,27 @@ def get_app_info(branch):
   webport = find_port_for_location(config_file_path, branch)
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{branch.upper()}')
 
-  return f"""
-{{
-  branch: {branch},
-  url: https://{branch}.palatialxr.com/,
-  webServerPort: {webport},
-  dedicatedServerPort: {dserverport},
-  unrealWebsocketEndpoint: wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{branch}/ws,
-}}
-"""
+  return {
+   "branch": branch,
+   "url": f"https://{branch}.palatialxr.com/",
+   "webServerPort": webport,
+   "dedicatedServerPort": dserverport,
+   "unrealWebsocketEndpoint": f"wss://sps.tenant-palatial-platform.lga1.ingress.coreweave.cloud/{branch}/ws",
+  }
 
 def setup_application_site(branch, log=False):
   file_path = f'/etc/nginx/sites-available/{branch}.app'
-  dedicated_server_port = None
 
-  if has_location_block(file_path, branch):
-    return get_app_info(branch)
+  setup_dedicated_server(branch)
 
-  new_location_block = f"""
-  location = / {{
-    proxy_pass http://localhost:3000;
-  }}
+  if not has_location_block(file_path, branch):
+    new_location_block = f"""
+    location = / {{
+      proxy_pass http://localhost:3000;
+    }}
 """
 
-  new_server_block = f"""
+    new_server_block = f"""
 server {{
   listen 443 ssl;
   server_name {branch}.palatialxr.com;
@@ -76,36 +74,39 @@ server {{
 }}
 """
 
-  if not os.path.exists(file_path):
-    if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
-      make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
-      subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if not os.path.exists(file_path):
+      if not os.path.exists(f'/etc/letsencrypt/renewal/{branch}.palatialxr.com.conf'):
+        make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{branch}.palatialxr.com', '--nginx']
+        subprocess.run(make_certificate, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-    with open(file_path, 'w') as file:
-      file.write(new_server_block)
+      with open(file_path, 'w') as file:
+        file.write(new_server_block)
 
-    subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.app', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{branch}.app', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  reload = ['sudo', 'nginx', '-s', 'reload']
-  subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    reload = ['sudo', 'nginx', '-s', 'reload']
+    subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  # Set up web service file
-  file_path = f'/etc/systemd/system/dom_{branch}.service'
-
-  # Make dedicated server first to get the port number
-  setup_dedicated_server(branch)
-
-  return get_app_info(branch)
+  return json.dumps(get_app_info(branch), indent=2)
 
 def setup_dedicated_server(branch):
   file_path = f'/etc/systemd/system/server_{branch}.service'
-  env_vars = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
-  if not os.path.exists(file_path):
-    dedicated_server_port = portlookup.find_dedicated_server_port(branch, env_vars)
-    subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  if os.path.exists(file_path):
+    return
 
-    service_file = f"""
+  env_path = '/home/david/Palatial-Web-Loading/.env'
+  values = dotenv_values(env_path)
+  key = 'REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()
+
+  dedicated_server_port = portlookup.find_dedicated_server_port(values)
+
+  values[key] = str(dedicated_server_port)
+  portlookup.reload_env_file(env_path, values)
+
+  subprocess.run(['sudo', 'ufw', 'allow', f'{dedicated_server_port}/udp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+  service_file = f"""
 [Unit]
 Description=Dedicated server for {branch}
 After=network.target
@@ -120,14 +121,17 @@ Restart=on-success
 WantedBy=multi-user.target
 """
 
-    with open(file_path, 'w') as file:
-      file.write(service_file)
+  with open(file_path, 'w') as file:
+    file.write(service_file)
 
-    subprocess.run(['sudo', 'systemctl', 'daemon-reload'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  subprocess.run(['sudo', 'systemctl', 'daemon-reload'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  subprocess.run(['sudo', 'systemctl', 'enable', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  return env_vars['REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()]
+  # When a new environment variable has been made the project needs to be rebuilt to load them in
+  path = os.path.expanduser("~/Palatial-Web-Loading/")
+  os.chdir(path)
+  subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

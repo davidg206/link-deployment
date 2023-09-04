@@ -20,22 +20,6 @@ def has_location_block(file_path, search_string, is_domain):
         return True
   return False
 
-def find_port_for_location(file_path, search_string):
-  try:
-    with open(file_path, 'r') as file:
-      content = file.read()
-
-    pattern = r"location\s*=\s*(/[^{\s]+)\s*{[^}]+proxy_pass\s+http://localhost:(\d+);"
-
-    matches = re.findall(pattern, content)
-    for location, port in matches:
-      if location[1:] == search_string:
-        return port
-    return None
-  except Exception as e:
-    print(f"An error occurred: {e}")
-    return None
-
 def get_app_info(branch, app, is_domain):
   ext = 'branch' if is_domain else 'app'
 

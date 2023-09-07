@@ -95,7 +95,7 @@ def refresh(domain):
   with open(config_file, 'w') as f:
     f.write(config_contents)
 
-  delete_file = len(result) == len(to_delete)
+  delete_file = len(result) == len(to_remove)
 
   if delete_file:
     os.remove(config_file)

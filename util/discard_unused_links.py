@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 import datetime
-import localutilities.localutilities
 
 def try_get_application(name):
   command = f"sps-client application read --name {name}"

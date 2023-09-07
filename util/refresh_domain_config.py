@@ -25,6 +25,7 @@ def try_get_application(name):
 
 def refresh(domain):
   config_file = f'/etc/nginx/sites-available/{domain}.branch'
+  symbol_file = f'/etc/nginx/sites-enabled/{domain}.branch'
 
   if not os.path.exists(config_file):
     print(f"error: {config_file} does not exist")
@@ -78,7 +79,6 @@ def refresh(domain):
   root /home/david/Palatial-Web-Loading/build/;
   index index.html;
 
-  # Handle requests to root path (/) with a 404 response
   location = / {{
     return 404;
   }}
@@ -95,9 +95,15 @@ def refresh(domain):
   with open(config_file, 'w') as f:
     f.write(config_contents)
 
+  delete_file = len(result) == len(to_delete)
+
+  if delete_file:
+    os.remove(config_file)
+    os.remove(symbol_file)
+
   subprocess.run(['sudo', 'nginx', '-s', 'reload'])
 
-  print(config_contents)
+  print(config_contents if not delete_file else "all paths have been removed and the file has been deleted")
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

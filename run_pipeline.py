@@ -56,9 +56,9 @@ def setup_application_site(config, is_domain=False):
       proxy_pass http://localhost:3000;
     }}
 """ if is_domain else """
-    location = / {{
-      proxy_pass http://localhost:3000;
-    }}
+  location = / {
+    proxy_pass http://localhost:3000;
+  }
 """
 
     new_server_block = f"""
@@ -71,11 +71,11 @@ server {{
 
   root /home/david/Palatial-Web-Loading/;
   index index.html;
-
-  location = / {{
+""" + ("""
+  location = / {
     return 404;
-  }}
-
+  }
+""" if is_domain else "") + f"""
   location ~ ^/static/ {{
     proxy_pass http://localhost:3000;
   }}

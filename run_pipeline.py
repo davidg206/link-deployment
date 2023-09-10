@@ -52,9 +52,9 @@ def setup_application_site(config, is_domain=False):
 
   if not has_location_block(file_path, app, is_domain):
     new_location_block = f"""
-    location = /{application} {{
-      proxy_pass http://localhost:3000;
-    }}
+  location = /{application} {{
+    proxy_pass http://localhost:3000;
+  }}
 """ if is_domain else """
   location = / {
     proxy_pass http://localhost:3000;

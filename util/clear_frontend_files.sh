@@ -3,9 +3,9 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-sudo systemctl stop dom_$1
-sudo systemctl disable dom_$1
 if [ -f "/etc/systemd/system/dom_${1}.service" ]; then
+  sudo systemctl stop dom_$1
+  sudo systemctl disable dom_$1
   sudo rm /etc/systemd/system/dom_${1}.service
 fi
 sudo systemctl daemon-reload

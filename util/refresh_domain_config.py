@@ -64,7 +64,7 @@ def refresh(domain):
     app = item[0]
     port = item[1]
     with open(logfile, "a") as f:
-      f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {app}\n")
+      f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {domain}/{app}\n")
     os.system(f'bash ~/link-deployment/util/cleanup.sh {app}')
     subprocess.run(['sudo', 'ufw', 'deny', f'{port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   print("Done")
@@ -100,6 +100,7 @@ def refresh(domain):
   if delete_file:
     os.remove(config_file)
     os.remove(symbol_file)
+    subprocess.run(['certbot', 'delete', '--cert-name', f'{domain}.palatialxr.com'])
 
   subprocess.run(['sudo', 'nginx', '-s', 'reload'])
 

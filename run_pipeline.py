@@ -156,6 +156,7 @@ WantedBy=multi-user.target
   path = os.path.expanduser("~/Palatial-Web-Loading/")
   os.chdir(path)
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
+  subprocess.run(['sudo', 'chown', '-R', 'david:david', '.'])
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

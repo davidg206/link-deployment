@@ -8,10 +8,10 @@ import json
 from portlookup import portlookup
 from dotenv import dotenv_values
 
-def has_location_block(file_path, search_string, is_domain):
+def has_location_block(file_path, search_string, is_path_app):
   if not os.path.exists(file_path):
     return False
-  if not is_domain:
+  if not is_path_app:
     return True
 
   with open(file_path, 'r') as file:
@@ -50,30 +50,30 @@ def find_port_for_location(file_path, search_string):
     print(f"An error occurred: {e}")
     return None
 
-def get_app_info(subdomain, app, is_domain):
-  ext = 'branch' if is_domain else 'app'
+def get_app_info(subdomain, app, is_path_app):
+  ext = 'branch' if is_path_app else 'app'
 
   config_file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
 
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{app.upper()}')
 
-  hasWebServer = has_location_block(config_file_path, app, is_domain)
+  hasWebServer = has_location_block(config_file_path, app, is_path_app)
 
   return {
-    "branch": "" if not is_domain else subdomain,
+    "branch": "" if not is_path_app else subdomain,
     "application": app,
-    "url": f"https://{subdomain}.palatialxr.com/{'' if not is_domain else app}" if hasWebServer else "",
+    "url": f"https://{subdomain}.palatialxr.com/{'' if not is_path_app else app}" if hasWebServer else "",
     "webServerPort": 3000 if hasWebServer else "",
     "dedicatedServerPort": dserverport if dserverport else "",
   }
 
-def setup_application_site(config, is_domain):
+def setup_application_site(config, is_path_app):
   subdomain = config.get("subdomain")
   branch = config.get('branch')
   app = config.get("application")
 
-  if is_domain:
+  if is_path_app:
     ext = 'branch'
   else:
     ext = 'app'
@@ -83,14 +83,14 @@ def setup_application_site(config, is_domain):
 
   file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
 
-  if not has_location_block(file_path, app, is_domain):
+  if not has_location_block(file_path, app, is_path_app):
     new_location_block = ""
     new_edit_location_block = f"""
-  location = /edit/{app if is_domain else ""} {{
+  location = /edit/{app if is_path_app else ""} {{
     proxy_pass http://localhost:3000;
   }}
 """
-    if is_domain:
+    if is_path_app:
       new_location_block = f"""
   location = /{app} {{
     proxy_pass http://localhost:3000;
@@ -109,21 +109,21 @@ server {{
   index index.html;
 
   location = / {{
-    { "return 404;" if is_domain else "proxy_pass http://localhost:3000;" }
+    { "return 404;" if is_path_app else "proxy_pass http://localhost:3000;" }
   }}
 
   location ~ ^/static/ {{
     proxy_pass http://localhost:3000;
   }}
 
-  {new_edit_location_block if not is_domain else ""}
+  {new_edit_location_block if not is_path_app else ""}
 
   {new_location_block}
 }}
 """
 
     if os.path.exists(file_path):
-      if is_domain:
+      if is_path_app:
         insert_location_block(file_path, new_location_block)
     else:
       if not os.path.exists(f'/etc/letsencrypt/renewal/{subdomain}.palatialxr.com.conf'):
@@ -135,13 +135,13 @@ server {{
 
       subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{subdomain}.{ext}', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    if is_domain:
+    if is_path_app:
       insert_location_block(file_path, new_edit_location_block)
 
     reload = ['sudo', 'nginx', '-s', 'reload']
     subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  return json.dumps(get_app_info(subdomain, app, is_domain), indent=2)
+  return json.dumps(get_app_info(subdomain, app, is_path_app), indent=2)
 
 def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
@@ -218,18 +218,18 @@ if __name__ == "__main__":
     print('error: --application is required')
     sys.exit(1)
 
-  is_domain = config.get('branch') != None
-  if is_domain:
+  is_path_app = config.get('branch') != None
+  if is_path_app:
     config['subdomain'] = config.get('branch')
   else:
     config['subdomain'] = config.get('application')
 
   if config.get("server-only"):
     setup_dedicated_server(config["application"])
-    print(json.dumps(get_app_info(config["subdomain"], config["application"], is_domain), indent=2))
+    print(json.dumps(get_app_info(config["subdomain"], config["application"], is_path_app), indent=2))
     sys.exit(0)
 
-  output = setup_application_site(config, is_domain)
+  output = setup_application_site(config, is_path_app)
 
   print(output)
   sys.exit(0)

@@ -20,6 +20,20 @@ def has_location_block(file_path, search_string, is_domain):
         return True
   return False
 
+def insert_location_block(file_path, new_location_block):
+ with open(file_path, 'r') as file:
+   content = file.read()
+
+ # Find the position of the last '}' character in the content
+ last_brace_position = content.rfind('}')
+
+ if last_brace_position != -1:
+   # Insert the text before the last '}' character
+   updated_content = content[:last_brace_position] + new_location_block + content[last_brace_position:]
+
+   with open(file_path, 'w') as file:
+     file.write(updated_content)
+
 def find_port_for_location(file_path, search_string):
   try:
     with open(file_path, 'r') as file:
@@ -71,6 +85,11 @@ def setup_application_site(config, is_domain):
 
   if not has_location_block(file_path, app, is_domain):
     new_location_block = ""
+    new_edit_location_block = f"""
+  location = /edit/{app if is_domain else ""} {{
+    proxy_pass http://localhost:3000;
+  }}
+"""
     if is_domain:
       new_location_block = f"""
   location = /{app} {{
@@ -97,24 +116,15 @@ server {{
     proxy_pass http://localhost:3000;
   }}
 
+  {new_edit_location_block if not is_domain else ""}
+
   {new_location_block}
 }}
 """
 
     if os.path.exists(file_path):
       if is_domain:
-        with open(file_path, 'r') as file:
-          content = file.read()
-
-        # Find the position of the last '}' character in the content
-        last_brace_position = content.rfind('}')
-
-        if last_brace_position != -1:
-          # Insert the text before the last '}' character
-          updated_content = content[:last_brace_position] + new_location_block + content[last_brace_position:]
-
-          with open(file_path, 'w') as file:
-            file.write(updated_content)
+        insert_location_block(file_path, new_location_block)
     else:
       if not os.path.exists(f'/etc/letsencrypt/renewal/{subdomain}.palatialxr.com.conf'):
         make_certificate = ['sudo', 'certbot', 'certonly', '-d', f'{subdomain}.palatialxr.com', '--nginx']
@@ -124,6 +134,9 @@ server {{
         file.write(new_server_block)
 
       subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{subdomain}.{ext}', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    if not has_location_block(file_path, f'edit/{app}', True):
+      insert_location_block(file_path, new_edit_location_block)
 
     reload = ['sudo', 'nginx', '-s', 'reload']
     subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -34,7 +34,7 @@ def refresh(domain):
   with open(config_file, 'r') as f:
     file_content = f.read()
 
-  pattern = r"location\s+=\s+/([\w\d_-]+)\s+{\s+proxy_pass\s+http://localhost:(\d+);"
+  pattern = r"location\s+=\s+/(?:edit/)?([\w\d_-]+)\s+{\s+proxy_pass\s+http://localhost:(\d+);"
 
   matches = re.findall(pattern, file_content)
 

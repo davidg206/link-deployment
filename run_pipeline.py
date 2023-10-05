@@ -135,7 +135,7 @@ server {{
 
       subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{subdomain}.{ext}', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    if is_domain and not has_location_block(file_path, f'edit/{app}', True):
+    if is_domain:
       insert_location_block(file_path, new_edit_location_block)
 
     reload = ['sudo', 'nginx', '-s', 'reload']

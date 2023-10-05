@@ -85,14 +85,10 @@ def setup_application_site(config, is_path_app):
 
   if not has_location_block(file_path, app, is_path_app):
     new_location_block = ""
-    new_edit_location_block = f"""
-  location = /edit/{app if is_path_app else ""} {{
-    proxy_pass http://localhost:3000;
-  }}
-"""
+
     if is_path_app:
       new_location_block = f"""
-  location = /{app} {{
+  location ~ /({app}|edit/{app}) {{
     proxy_pass http://localhost:3000;
   }}
 """
@@ -108,15 +104,13 @@ server {{
   root /home/david/Palatial-Web-Loading/;
   index index.html;
 
-  location = / {{
+  location ~ ^/(|edit)$ {{
     { "return 404;" if is_path_app else "proxy_pass http://localhost:3000;" }
   }}
 
   location ~ ^/static/ {{
     proxy_pass http://localhost:3000;
   }}
-
-  {new_edit_location_block if not is_path_app else ""}
 
   {new_location_block}
 }}
@@ -134,9 +128,6 @@ server {{
         file.write(new_server_block)
 
       subprocess.run(['sudo', 'ln', '-s', f'/etc/nginx/sites-available/{subdomain}.{ext}', '/etc/nginx/sites-enabled/'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    if is_path_app:
-      insert_location_block(file_path, new_edit_location_block)
 
     reload = ['sudo', 'nginx', '-s', 'reload']
     subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

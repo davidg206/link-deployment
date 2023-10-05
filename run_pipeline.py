@@ -34,22 +34,6 @@ def insert_location_block(file_path, new_location_block):
    with open(file_path, 'w') as file:
      file.write(updated_content)
 
-def find_port_for_location(file_path, search_string):
-  try:
-    with open(file_path, 'r') as file:
-      content = file.read()
-
-    pattern = r"location\s*=\s*(/[^{\s]+)\s*{[^}]+proxy_pass\s+http://localhost:(\d+);"
-
-    matches = re.findall(pattern, content)
-    for location, port in matches:
-      if location[1:] == search_string:
-        return port
-    return None
-  except Exception as e:
-    print(f"An error occurred: {e}")
-    return None
-
 def get_app_info(subdomain, app, is_path_app):
   ext = 'branch' if is_path_app else 'app'
 

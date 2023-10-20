@@ -34,9 +34,11 @@ def refresh(domain):
   with open(config_file, 'r') as f:
     file_content = f.read()
 
-  pattern = r"location\s+=\s+/(?:edit/)?([\w\d_-]+)\s+{\s+proxy_pass\s+http://localhost:(\d+);"
+  pattern = r"location\s+=\s+/(?:edit/)?([\w\d_-]+)\s+{\s+proxy_pass\s+http://localhost:\d+;"
+  pattern2 = r'location ~ /(\w+)\|edit/\w+'
 
   matches = re.findall(pattern, file_content)
+  matches.append(re.findall(pattern2, file_content))
 
   unique_elements = set()
   result = []
@@ -44,16 +46,15 @@ def refresh(domain):
 
   for match in matches:
     path = match[0]
-    port = int(match[1])
 
-    element = (path, port)
+    element = path
 
     if element not in unique_elements:
       unique_elements.add(element)
       if try_get_application(path)[0]:
-        result.append([path, port])
+        result.append(path)
       else:
-        to_remove.append([path, port])
+        to_remove.append(path)
 
   current_datetime = datetime.datetime.now()
   home_directory = os.path.expanduser("~")
@@ -62,11 +63,9 @@ def refresh(domain):
   print("Discarding unused files...")
   for item in to_remove:
     app = item[0]
-    port = item[1]
     with open(logfile, "a") as f:
       f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {domain}/{app}\n")
     os.system(f'bash ~/link-deployment/util/cleanup.sh {app}')
-    subprocess.run(['sudo', 'ufw', 'deny', f'{port}/tcp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   print("Done")
 
   config_contents = f"""server {{
@@ -79,15 +78,19 @@ def refresh(domain):
   root /home/david/Palatial-Web-Loading/build/;
   index index.html;
 
-  location = / {{
+  location ~ ^/(|edit)$ {{
     return 404;
+  }}
+
+  location ~ ^/static/ {{
+    proxy_pass http://localhost:3000;
   }}
 """
 
   for info in result:
     config_contents += f"""
-  location = /{info[0]} {{
-     proxy_pass http://localhost:{info[1]};
+  location ~ /({info[0]}|edit/{info[0]}) {{
+     proxy_pass http://localhost:3000;
   }}
 """
   config_contents += "}"

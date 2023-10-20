@@ -72,7 +72,7 @@ def setup_application_site(config, is_path_app):
 
     if is_path_app:
       new_location_block = f"""
-  location ~ /({app}|edit/{app}) {{
+  location = /{app} {{
     proxy_pass http://localhost:3000;
   }}
 """
@@ -88,7 +88,7 @@ server {{
   root /home/david/Palatial-Web-Loading/;
   index index.html;
 
-  location ~ ^/(|edit)$ {{
+  location = / {{
     { "return 404;" if is_path_app else "proxy_pass http://localhost:3000;" }
   }}
 

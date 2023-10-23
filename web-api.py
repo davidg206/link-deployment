@@ -18,7 +18,7 @@ def run_script():
     if 'url' in args:
         url = args['url']
 
-        output = subprocess.run(['sudo', '-E', 'python3', 'run_pipeline.py', url], stdout=subprocess.PIPE, text=True)
+        output = subprocess.run(['sudo', '-E', 'python3', 'run_pipeline.py', url, '-C'], stdout=subprocess.PIPE, text=True)
 
         return output.stdout
     else:

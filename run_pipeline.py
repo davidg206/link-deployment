@@ -35,7 +35,7 @@ def insert_location_block(file_path, new_location_block):
    with open(file_path, 'w') as file:
      file.write(updated_content)
 
-def get_app_info(subdomain, app, is_path_app):
+def get_app_info(subdomain, path, is_path_app):
   ext = 'branch' if is_path_app else 'app'
 
   config_file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
@@ -43,12 +43,12 @@ def get_app_info(subdomain, app, is_path_app):
 
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{app.upper()}')
 
-  hasWebServer = has_location_block(config_file_path, app, is_path_app)
+  hasWebServer = has_location_block(config_file_path, path, is_path_app)
 
   return {
     "branch": "" if not is_path_app else subdomain,
-    "application": app,
-    "url": f"https://{subdomain}.palatialxr.com/{'' if not is_path_app else app}" if hasWebServer else "",
+    "application": path,
+    "url": f"https://{subdomain}.palatialxr.com/{'' if not is_path_app else path}" if hasWebServer else "",
     "webServerPort": 3000 if hasWebServer else "",
     "dedicatedServerPort": dserverport if dserverport else "",
   }
@@ -68,12 +68,12 @@ def setup_application_site(config, is_path_app):
 
   file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
 
-  if not has_location_block(file_path, app, is_path_app):
+  if not has_location_block(file_path, config['path'], is_path_app):
     new_location_block = ""
 
     if is_path_app:
       new_location_block = f"""
-  location = /{app} {{
+  location = /{config['path']} {{
     proxy_pass http://localhost:3000;
   }}
 """
@@ -117,7 +117,7 @@ server {{
     reload = ['sudo', 'nginx', '-s', 'reload']
     subprocess.run(reload, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-  return json.dumps(get_app_info(subdomain, app, is_path_app), indent=2)
+  return json.dumps(get_app_info(subdomain, config['path'], is_path_app), indent=2)
 
 def setup_dedicated_server(application):
   file_path = f'/etc/systemd/system/server_{application}.service'
@@ -166,43 +166,40 @@ WantedBy=multi-user.target
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:
-    print('python run_pipeline.py [options]...\n\n\
+    print('python run_pipeline.py <url> [option]\n\n\
 -A, -C            Create a webserver\n\
---subdomain       If the application is a path link, the subdomain it exists under\n\
---application     The name of the application')
+-S                Create a dedicated server')
     sys.exit(1)
 
   config = {}
 
-  for i in range(1, len(sys.argv)):
-    if sys.argv[i] == "-A" or sys.argv[i] == "-C":
-      config["client-only"] = True
-    if sys.argv[i] == "-S":
-      config["server-only"] = True
-    if sys.argv[i] == "--branch":
-      if i + 1 >= len(sys.argv):
-        print("--branch requires an argument")
-        sys.exit(1)
-      config["branch"] = sys.argv[i + 1]
-    if sys.argv[i] == "--application":
-      if i + 1 >= len(sys.argv):
-        print("--application requires an argument")
-        sys.exit(1)
-      config["application"] = sys.argv[i + 1]
+  url = sys.argv[1]
+  opt = sys.argv[2] if len(sys.argv) == 3 else ""
+  is_path_app = False
 
-  if not config.get('application'):
-    print('error: --application is required')
-    sys.exit(1)
+  if opt in ['-A', '-C']:
+    config['client-only'] = True
+  if opt == '-S':
+    config['server-only'] = True
 
-  is_path_app = config.get('branch') != None
-  if is_path_app:
-    config['subdomain'] = config.get('branch')
+  parsed_url = urlparse(url)
+
+  hostname = parsed_url.hostname.split(".")[0]
+  path = parsed_url.path.strip("/")
+
+  config['subdomain'] = hostname
+  config['path'] = path
+
+  if path:
+    is_path_app = True
+    config['branch'] = hostname
+    config['application'] = path.split('/')[-1]
   else:
-    config['subdomain'] = config.get('application')
+    config['path'] = config['application']
 
   if config.get("server-only"):
     setup_dedicated_server(config["application"])
-    print(json.dumps(get_app_info(config["subdomain"], config["application"], is_path_app), indent=2))
+    print(json.dumps(get_app_info(config["subdomain"], config["path"], is_path_app), indent=2))
     sys.exit(0)
 
   output = setup_application_site(config, is_path_app)

@@ -7,6 +7,7 @@ import re
 import json
 from portlookup import portlookup
 from dotenv import dotenv_values
+from urllib.parse import urlparse
 
 def has_location_block(file_path, search_string, is_path_app):
   if not os.path.exists(file_path):

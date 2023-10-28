@@ -40,6 +40,7 @@ def get_app_info(subdomain, path, is_path_app):
 
   config_file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
   values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+  app = path.split('/')[-1]
 
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{app.upper()}')
 
@@ -164,6 +165,14 @@ WantedBy=multi-user.target
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
   subprocess.run(['sudo', 'chown', '-R', 'david:david', '.'])
 
+def generate_random_string(length):
+    import random
+    import string
+
+    characters = string.ascii_letters + string.digits  # Letters and digits
+    random_string = ''.join(random.choice(characters) for _ in range(length))
+    return random_string
+
 if __name__ == "__main__":
   if len(sys.argv) < 2:
     print('python run_pipeline.py <url> [option]\n\n\
@@ -179,7 +188,7 @@ if __name__ == "__main__":
 
   if opt in ['-A', '-C']:
     config['client-only'] = True
-  if opt == '-S':
+  elif opt == '-S':
     config['server-only'] = True
 
   parsed_url = urlparse(url)
@@ -195,7 +204,13 @@ if __name__ == "__main__":
     config['branch'] = hostname
     config['application'] = path.split('/')[-1]
   else:
-    config['path'] = config['application']
+    config['path'] = config['application'] = hostname
+
+  if opt == "--generate-edit-url":
+    config['application'] = generate_random_string(14)
+    config['path'] = 'edit/' + config['application']
+    config['client-only'] = True
+    is_path_app = True
 
   if config.get("server-only"):
     setup_dedicated_server(config["application"])

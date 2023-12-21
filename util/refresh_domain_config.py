@@ -34,27 +34,26 @@ def refresh(domain):
   with open(config_file, 'r') as f:
     file_content = f.read()
 
-  pattern = r"location\s+=\s+/(?:edit/)?([\w\d_-]+)\s+{\s+proxy_pass\s+http://localhost:\d+;"
-  pattern2 = r'location ~ /(\w+)\|edit/\w+'
+  pattern = r'location\s+=\s+/([\w]+)/?([\w]+)?\s+{\s+proxy_pass\s+http://localhost:\d+;\s+}'
 
   matches = re.findall(pattern, file_content)
-  matches.append(re.findall(pattern2, file_content))
 
   unique_elements = set()
   result = []
   to_remove = []
 
-  for match in matches:
-    path = match[0]
+  for element in matches:
+    if element[0] == "edit":
+      result.append(f"edit/{element[1]}")
+      continue
+    application = element[0]
 
-    element = path
-
-    if element not in unique_elements:
-      unique_elements.add(element)
-      if try_get_application(path)[0]:
-        result.append(path)
+    if application not in unique_elements:
+      unique_elements.add(application)
+      if try_get_application(application)[0]:
+        result.append(application)
       else:
-        to_remove.append(path)
+        to_remove.append(application)
 
   current_datetime = datetime.datetime.now()
   home_directory = os.path.expanduser("~")
@@ -62,7 +61,7 @@ def refresh(domain):
 
   print("Discarding unused files...")
   for item in to_remove:
-    app = item[0]
+    app = item
     with open(logfile, "a") as f:
       f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {domain}/{app}\n")
     os.system(f'bash ~/link-deployment/util/cleanup.sh {app}')
@@ -89,7 +88,7 @@ def refresh(domain):
 
   for info in result:
     config_contents += f"""
-  location ~ /({info[0]}|edit/{info[0]}) {{
+  location = /{info} {{
      proxy_pass http://localhost:3000;
   }}
 """
@@ -98,16 +97,19 @@ def refresh(domain):
   with open(config_file, 'w') as f:
     f.write(config_contents)
 
-  delete_file = len(result) == len(to_remove)
+  print(matches)
+  print(to_remove)
+  delete_file = len(matches) == len(to_remove)
 
   if delete_file:
     os.remove(config_file)
-    os.remove(symbol_file)
+    if os.path.exists(symbol_file):
+      os.remove(symbol_file)
     subprocess.run(['certbot', 'delete', '--cert-name', f'{domain}.palatialxr.com'])
 
   subprocess.run(['sudo', 'nginx', '-s', 'reload'])
 
-  print(config_contents if not delete_file else "all paths have been removed and the file has been deleted")
+  print(config_contents if not delete_file else f"all paths have been removed from {domain}.branch and the file has been deleted")
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

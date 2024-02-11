@@ -1,16 +1,18 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS  # Import the CORS extension
 from kubernetes import client, config
+from bson import ObjectId
 import subprocess
 import os
 import pymongo
 import json
 import re
 import jwt
+import base64
 
 app = Flask(__name__)
 
-mongo_client = pymongo.MongoClient('mongodb://palatial:0UDUiKxwj7fI0@mongodb.mithyalabs.com:27017/palatial?directConnection=true&authSource=staging_db')
+mongo_client = pymongo.MongoClient('mongodb://localhost:27017/palatial?directConnection=true&authSource=staging_db')
 db = mongo_client["palatial"]
 collection = db["changelogs"]
 
@@ -18,6 +20,17 @@ config.load_kube_config(config_file='/home/david/.kube/config')
 
 v1 = client.CoreV1Api()
 api_instance = client.AppsV1Api()
+
+def parse_jwt(token):
+    token_parts = token.split('.')
+
+    base64_payload = token_parts[1]
+    base64_payload += '=' * (4 - len(base64_payload) % 4)
+    decoded_payload = base64.urlsafe_b64decode(base64_payload).decode('utf-8')
+
+    payload = json.loads(decoded_payload)
+
+    return payload
 
 def get_pod_name_starts_with(api_instance, namespace, prefix):
     pod_list = api_instance.list_namespaced_pod(namespace)
@@ -92,20 +105,13 @@ def app_info():
 @app.route('/v1/lookup', methods=['POST'])
 def lookup():
   args = request.get_json()
-
-  if 'name' in args:
-    name = args['name']
-    print('finding with', name)
-
-    documents_with_key = collection.find({"hash": name})
-    document_list = list(documents_with_key)
-    for x in document_list:
-      x["_id"] = str(x["_id"])
-    print(document_list)
-
-    json_result = json.dumps(document_list)
-    return json_result
-  return 'Missing argument', 400
+  if args.get("subjectId"):
+    args["subjectId"] = ObjectId(args["subjectId"])
+  print('Query = ', args)
+  result = collection.find_one(request.get_json())
+  json_data = json.dumps(result, default=str)
+  print('Result = ', json_data)
+  return json_data
 
 @app.route('/v1/insert', methods=['PUT'])
 def insert():
@@ -150,16 +156,19 @@ def k8s_components():
 def mythia_jwt():
   args = request.get_json()
   secret_key = args['secret']
-  # token passed in payload
   token = args['token']
+  print(secret_key, token)
   try:
-    decoded_payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+    print("Decoding....")
+    decoded_payload = parse_jwt(token)
     print("Decoded Payload:", decoded_payload)
     return decoded_payload, 201
   except jwt.ExpiredSignatureError:
-    return "Token has expired", 400
+    print("Expired")
+    return jsonify({ "error": "true", "message": "Token has expired" }), 201
   except jwt.InvalidTokenError:
-    return "Invalid token", 400
+    print("Invalid")
+    return jsonify({ "error": "true", "message": "Invalid token" }), 201
 
 @app.route('/v1/update-k8s-components', methods=['PUT'])
 def update_k8s_components():
@@ -189,6 +198,16 @@ def remove_instance():
 
   subprocess.run(['kubectl', 'delete', 'deployment', matching_deployment.metadata.name, '--force', '--grace-period=0'])
   return 'Sucess', 200
+
+@app.route('/v1/updateReactWebRepo', methods=['POST'])
+def updateReactWebRepo():
+  os.chdir('/home/david/palatial-web')
+  subprocess.run(['git', 'pull', 'origin', 'develop'])
+
+@app.route('/v1/updateNodeAPIRepo', methods=['POST'])
+def updateReactApiRepo():
+  os.chdir('/home/david/palatial-api')
+  subprocess.run(['sudo', 'npm', 'run', 'build'])
 
 if __name__ == '__main__':
     app.run(port=3001)

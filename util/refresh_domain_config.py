@@ -97,19 +97,17 @@ def refresh(domain):
   with open(config_file, 'w') as f:
     f.write(config_contents)
 
-  print(matches)
-  print(to_remove)
   delete_file = len(matches) == len(to_remove)
 
   if delete_file:
     os.remove(config_file)
     if os.path.exists(symbol_file):
       os.remove(symbol_file)
-    subprocess.run(['certbot', 'delete', '--cert-name', f'{domain}.palatialxr.com'])
+    subprocess.run(['certbot', 'delete', '--cert-name', f'{domain}.palatialxr.com'], stderr=subprocess.PIPE)
 
   subprocess.run(['sudo', 'nginx', '-s', 'reload'])
 
-  print(config_contents if not delete_file else f"all paths have been removed from {domain}.branch and the file has been deleted")
+  print(config_contents if not delete_file else f"All paths have been removed from {domain}.branch and the file has been deleted")
 
 if __name__ == "__main__":
   if len(sys.argv) < 2:

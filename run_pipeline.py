@@ -5,9 +5,16 @@ import sys
 import os
 import re
 import json
+import string
 from portlookup import portlookup
 from dotenv import dotenv_values
 from urllib.parse import urlparse
+
+def clean_string(input_string):
+    cleaned_string = input_string.replace("'", "")
+    cleaned_string = input_string.replace("_", "-")
+    cleaned_string = "-".join(cleaned_string.split())
+    return cleaned_string
 
 def has_location_block(file_path, search_string, is_path_app):
   if not os.path.exists(file_path):
@@ -193,7 +200,7 @@ if __name__ == "__main__":
 
   parsed_url = urlparse(url)
 
-  hostname = parsed_url.hostname.split(".")[0]
+  hostname = clean_string(parsed_url.hostname.split(".")[0])
   path = parsed_url.path.strip("/")
 
   config['subdomain'] = hostname

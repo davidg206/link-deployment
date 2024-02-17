@@ -209,5 +209,9 @@ def updateReactApiRepo():
   os.chdir('/home/david/palatial-api')
   subprocess.run(['sudo', 'npm', 'run', 'build'])
 
+@app.route('/v1/updateThumbnail', methods=['POST'])
+def updateThumbnail():
+  pass
+
 if __name__ == '__main__':
     app.run(port=3001)

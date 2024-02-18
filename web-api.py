@@ -21,6 +21,28 @@ config.load_kube_config(config_file='/home/david/.kube/config')
 v1 = client.CoreV1Api()
 api_instance = client.AppsV1Api()
 
+def get_youngest_pod_name(info):
+    # Split the info into lines and remove empty lines
+    lines = info.strip().split('\n')
+    lines = [line.strip() for line in lines if line.strip()]
+
+    # Initialize variables to store the youngest pod's age and its index
+    youngest_age = float('inf')
+    youngest_name = None
+
+    # Iterate over each line to find the youngest pod
+    for line in lines[1:]:  # Skip the header line
+        parts = line.split()
+        name = parts[0]  # Assuming name is the first element
+        age = parts[-1]  # Assuming age is the last element
+        age_value = int(age[:-1]) if age.endswith('d') else 0  # Extract days from age
+        if age_value < youngest_age:
+            youngest_age = age_value
+            youngest_name = name
+
+    # Return the name of the youngest pod
+    return youngest_name if youngest_name is not None else "No pods found"
+
 def parse_jwt(token):
     token_parts = token.split('.')
 
@@ -40,19 +62,11 @@ def get_pod_name_starts_with(api_instance, namespace, prefix):
     return matching_pods[0]
 
 def parse_pod_output(output):
-  pattern = re.compile(r'^\S+', re.MULTILINE)
-
-  matches = pattern.findall(output)
-  if not matches or matches[0] != "NAME":
-    return []
-  pods = matches[1:]
-
+  youngestPod = get_youngest_pod_name(output)
   result = []
-
-  for p in pods:
-    output = subprocess.run(['kubectl', 'get', 'pods', p, "-o=jsonpath='{.status.phase}'"], stdout=subprocess.PIPE)
-    if output.stdout != "Terminating":
-      result.append(p)
+  output = subprocess.run(['kubectl', 'get', 'pods', youngestPod, "-o=jsonpath='{.status.phase}'"], stdout=subprocess.PIPE)
+  if output.stdout != "Terminating":
+    result.append(youngestPod)
   return result
 
 @app.after_request

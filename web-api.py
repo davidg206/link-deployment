@@ -45,7 +45,15 @@ def parse_pod_output(output):
   matches = pattern.findall(output)
   if not matches or matches[0] != "NAME":
     return []
-  return matches[1:]
+  pods = matches[1:]
+
+  result = []
+
+  for p in pods:
+    output = subprocess.run(['kubectl', 'get', 'pods', p, "-o=jsonpath='{.status.phase}'"], stdout=subprocess.PIPE)
+    if output.stdout != "Terminating":
+      result.append(p)
+  return result
 
 @app.after_request
 def after_request(response):

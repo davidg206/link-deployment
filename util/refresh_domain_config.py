@@ -1,11 +1,45 @@
 import subprocess
+import sys
 import json
 import sys
 import os
 import re
 import datetime
 
+sys.path.append('/home/david/.local/lib/python3.8/site-packages')
+
+import pymongo
+
+client = pymongo.MongoClient("mongodb://localhost:27017/palatial?directConnection=true&authSource=staging_db")
+db = client["palatial"]
+
+def lookup_edit_hash(hash):
+  return db.changelogs.find_one({ "payload.application": hash })
+
+def is_edit_url(hash):
+  urlStub = lookup_edit_hash(hash)
+  return urlStub != None
+
+def edit_hash_to_application(hash):
+  if not is_edit_url(hash):
+    return None
+
+  urlStub = lookup_edit_hash(hash)
+  if not urlStub:
+    return None
+
+  buildStub = db.changelogs.find_one({ "event": "import complete", "subjectId": urlStub["subjectId"] })
+  if not buildStub:
+    return None
+
+  return buildStub["application"]
+
 def try_get_application(name):
+  if "edit/" in name:
+    name = edit_hash_to_application(name)
+    if not name:
+      return False, None
+
   command = f"sps-client application read --name {name}"
   try:
     output = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -22,6 +56,11 @@ def try_get_application(name):
     return data["statusCode"] == 200, data
   except subprocess.CalledProcessError as e:
     return False, None
+
+def get_application_from_hash(hash):
+  if is_edit_url(hash):
+    return edit_hash_to_application(hash)
+  return hash
 
 def refresh(domain):
   config_file = f'/etc/nginx/sites-available/{domain}.branch'
@@ -44,12 +83,18 @@ def refresh(domain):
 
   for element in matches:
     if element[0] == "edit":
-      result.append(f"edit/{element[1]}")
+      application = f'edit/{element[1]}'
+    else:
+      application = element[0]
+
+    if element[0] == "view":
+      result.append(f'view/{element[1]}')
       continue
-    application = element[0]
 
     if application not in unique_elements:
       unique_elements.add(application)
+
+      print(application)
       if try_get_application(application)[0]:
         result.append(application)
       else:
@@ -64,7 +109,10 @@ def refresh(domain):
     app = item
     with open(logfile, "a") as f:
       f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {domain}/{app}\n")
-    os.system(f'bash ~/link-deployment/util/cleanup.sh {app}')
+    print("Removing " + app)
+    if get_application_from_hash(app):
+      print("hey")
+      os.system(f'bash /home/david/link-deployment/util/cleanup.sh {get_application_from_hash(app)}')
   print("Done")
 
   config_contents = f"""server {{

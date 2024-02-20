@@ -93,6 +93,18 @@ def generate_url():
 
   return output.stdout
 
+@app.route('/generateViewUrl', methods=['POST'])
+def generateViewUrl():
+  args = request.get_json()
+
+  # url is expected to be https://{workspace}.palatialxr.com
+  if 'url' in args:
+    args['url'] = args['url'].lower().replace(' ', '-').replace('_', '-')
+    output = subprocess.run(['sudo', '-E', 'python3', 'run_pipeline.py', args['url'], '--generate-view-url'], stdout=subprocess.PIPE, text=True)
+    return output.stdout
+
+  return 'Missing URL', 400
+
 @app.route('/generate-edit-url', methods=['POST'])
 def run_script():
   args = request.get_json()

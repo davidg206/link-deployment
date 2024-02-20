@@ -219,6 +219,12 @@ if __name__ == "__main__":
     config['client-only'] = True
     is_path_app = True
 
+  if opt == "--generate-view-url":
+    config['application'] = generate_random_string(14)
+    config['path'] = 'view/' + config['application']
+    config['client-only'] = True
+    is_path_app = True
+
   if config.get("server-only"):
     setup_dedicated_server(config["application"])
     print(json.dumps(get_app_info(config["subdomain"], config["path"], is_path_app), indent=2))

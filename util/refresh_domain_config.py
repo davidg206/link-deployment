@@ -35,7 +35,7 @@ def edit_hash_to_application(hash):
   return buildStub["application"]
 
 def try_get_application(name):
-  if "edit/" in name:
+  if "edit/" in name or "view/" in name:
     name = edit_hash_to_application(name)
     if not name:
       return False, None
@@ -82,14 +82,10 @@ def refresh(domain):
   to_remove = []
 
   for element in matches:
-    if element[0] == "edit":
-      application = f'edit/{element[1]}'
+    if element[0] == "edit" or element[0] == "view":
+      application = f'{element[0]}/{element[1]}'
     else:
       application = element[0]
-
-    if element[0] == "view":
-      result.append(f'view/{element[1]}')
-      continue
 
     if application not in unique_elements:
       unique_elements.add(application)

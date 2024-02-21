@@ -14,8 +14,11 @@ if [ -d "~/servers/$1" ]; then
   sudo rm -rf ~/servers/$1
 fi
 
-sudo rm /etc/nginx/sites-available/$1.app /etc/nginx/sites-enabled/$1.app
-sudo nginx -s reload
+if [ -f "/etc/nginx/sites-available/$1.app" ]; then
+  sudo rm /etc/nginx/sites-available/$1.app /etc/nginx/sites-enabled/$1.app
+  sudo nginx -s reload
+fi
+
 sps-client application delete --name $1
 sudo -E python3 freeport.py $1
 sudo systemctl daemon-reload

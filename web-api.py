@@ -93,7 +93,7 @@ def generate_url():
 
   return output.stdout
 
-@app.route('/generateViewUrl', methods=['POST'])
+@app.route('/v2/generateViewUrl', methods=['POST'])
 def generateViewUrl():
   args = request.get_json()
 
@@ -116,15 +116,20 @@ def run_script():
 
   return 'Missing URL', 400
 
-@app.route('/delete-app', methods=['POST'])
+@app.route('/v2/deleteApp', methods=['POST'])
 def delete_app():
   args = request.get_json()
 
-  if 'name' in args:
-    os.system(f"bash ~/link-deployment/util/cleanup.sh {args['name']}")
-    subprocess.run(['sudo', '-E', 'python3', 'discard_unused_links.py'])
-  else:
-    return 'Missing name', 400
+  projectId = args["subjectId"]
+  print("deleting ... ")
+  buildStub = collection.find_one({ "event": "import complete", "subjectId": ObjectId(projectId) })
+  if not buildStub:
+    return 'Project not found', 400
+
+  app_name = buildStub.get('application')
+
+  os.system(f"bash /home/david/link-deployment/util/cleanup.sh {app_name}")
+  subprocess.run(['sudo', '-E', 'python3', '/home/david/link-deployment/util/discard_unused_links.py'])
   return 'Success', 200
 
 @app.route('/app-info', methods=['POST'])

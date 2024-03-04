@@ -62,6 +62,14 @@ def get_application_from_hash(hash):
     return edit_hash_to_application(hash)
   return hash
 
+def log(message):
+  home_directory = os.path.expanduser("~")
+  logfile = os.path.join(home_directory, "cronlog")
+  current_datetime = datetime.datetime.now()
+  print(message)
+  with open(logfile, "a") as f:
+    f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} {message}\n")
+
 def refresh(domain):
   config_file = f'/etc/nginx/sites-available/{domain}.branch'
   symbol_file = f'/etc/nginx/sites-enabled/{domain}.branch'
@@ -90,24 +98,16 @@ def refresh(domain):
     if application not in unique_elements:
       unique_elements.add(application)
 
-      print(application)
       if try_get_application(application)[0]:
         result.append(application)
       else:
         to_remove.append(application)
 
-  current_datetime = datetime.datetime.now()
-  home_directory = os.path.expanduser("~")
-  logfile = os.path.join(home_directory, "cronlog")
-
   print("Discarding unused files...")
   for item in to_remove:
     app = item
-    with open(logfile, "a") as f:
-      f.write(f"{current_datetime.strftime('%A, %B %d, %Y %H:%M:%S')} Full clean {domain}/{app}\n")
-    print("Removing " + app)
+    log(f"Full clean {domain}/{app}\n")
     if get_application_from_hash(app):
-      print("hey")
       os.system(f'bash /home/david/link-deployment/util/cleanup.sh {get_application_from_hash(app)}')
   print("Done")
 
@@ -144,9 +144,14 @@ def refresh(domain):
   delete_file = len(matches) == len(to_remove)
 
   if delete_file:
-    os.remove(config_file)
     if os.path.exists(symbol_file):
+      log(f"Deleting the symbol file for {domain}")
       os.remove(symbol_file)
+    else:
+      log(f"Could not find symbol file at {symbol_file}")
+
+    log(f"Deleting the config file for {domain}")
+    os.remove(config_file)
     subprocess.run(['certbot', 'delete', '--cert-name', f'{domain}.palatialxr.com'], stderr=subprocess.PIPE)
 
   subprocess.run(['sudo', 'nginx', '-s', 'reload'])

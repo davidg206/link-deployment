@@ -9,6 +9,7 @@ import json
 import re
 import jwt
 import base64
+import bcrypt
 
 app = Flask(__name__)
 
@@ -20,6 +21,13 @@ config.load_kube_config(config_file='/home/david/.kube/config')
 
 v1 = client.CoreV1Api()
 api_instance = client.AppsV1Api()
+
+@app.before_request
+def log_request_info():
+    ip_address = request.remote_addr
+    request_url = request.url
+    request_method = request.method
+    print(f"Request from {ip_address} to {request_url} using {request_method} method")
 
 def get_youngest_pod_name(info):
     # Split the info into lines and remove empty lines
@@ -57,6 +65,8 @@ def parse_jwt(token):
 def get_pod_name_starts_with(api_instance, namespace, prefix):
     pod_list = api_instance.list_namespaced_pod(namespace)
 
+    print('prefix = ')
+    print(prefix)
     matching_pods = [pod for pod in pod_list.items if pod.metadata.name.startswith(prefix)]
 
     return matching_pods[0]
@@ -128,8 +138,11 @@ def delete_app():
 
   app_name = buildStub.get('application')
 
-  os.system(f"bash /home/david/link-deployment/util/cleanup.sh {app_name}")
-  subprocess.run(['sudo', '-E', 'python3', '/home/david/link-deployment/util/discard_unused_links.py'])
+  if buildStub.get("workspace"):
+    workspace = buildStub["workspace"]
+    subprocess.run(['sudo', '-E', 'python3', f'/home/david/link-deployment/util/refresh_domain_config.py {workspace}'])
+  else:
+    os.system(f"bash /home/david/link-deployment/util/cleanup.sh {app_name}")
   return 'Success', 200
 
 @app.route('/app-info', methods=['POST'])
@@ -236,7 +249,7 @@ def remove_instance():
       break
 
   subprocess.run(['kubectl', 'delete', 'deployment', matching_deployment.metadata.name, '--force', '--grace-period=0'])
-  return 'Sucess', 200
+  return 'Success', 200
 
 @app.route('/v1/updateReactWebRepo', methods=['POST'])
 def updateReactWebRepo():
@@ -252,5 +265,31 @@ def updateReactApiRepo():
 def updateThumbnail():
   pass
 
+@app.route('/v2/checkPassword', methods=['POST'])
+def checkPassword():
+  args = request.get_json()
+  user = db.users.find_one({ '_id': ObjectId(args['id']) })
+  encrypted_pw = user["password"]
+  pass_to_check = args['password']
+  if bcrypt.checkpw(pass_to_check.encode('utf-8'), encrypted_pw.encode('utf-8')):
+    return jsonify({ 'valid': True }), 200
+  return jsonify({ 'valid': False }), 200
+
+@app.route('/v2/streamTick', methods=['POST'])
+def streamTick():
+  args = request.get_json()
+  userId = args["userId"]
+  user = db.users.find_one({ '_id': ObjectId(userId) })
+
+  if not 'streamingTime' in user:
+    return jsonify({ 'expired': False }), 200
+
+  update_query = { "$inc": { "streamingTime": 1 } }
+  db.users.update_one({ '_id': ObjectId(userId) }, update_query)
+
+  if user['streamingTime'] >= user['allotedStreamingTime']:
+    return jsonify({ "expired": True }), 200
+  return jsonify({ "expired": False }), 200
+
 if __name__ == '__main__':
-    app.run(port=3001)
+    app.run(port=3001, debug=True)

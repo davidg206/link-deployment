@@ -10,6 +10,7 @@ import re
 import jwt
 import base64
 import bcrypt
+import sys
 
 app = Flask(__name__)
 
@@ -30,15 +31,12 @@ def log_request_info():
     print(f"Request from {ip_address} to {request_url} using {request_method} method")
 
 def get_youngest_pod_name(info):
-    # Split the info into lines and remove empty lines
     lines = info.strip().split('\n')
     lines = [line.strip() for line in lines if line.strip()]
 
-    # Initialize variables to store the youngest pod's age and its index
     youngest_age = float('inf')
     youngest_name = None
 
-    # Iterate over each line to find the youngest pod
     for line in lines[1:]:  # Skip the header line
         parts = line.split()
         name = parts[0]  # Assuming name is the first element
@@ -48,7 +46,6 @@ def get_youngest_pod_name(info):
             youngest_age = age_value
             youngest_name = name
 
-    # Return the name of the youngest pod
     return youngest_name if youngest_name is not None else "No pods found"
 
 def parse_jwt(token):
@@ -70,6 +67,20 @@ def get_pod_name_starts_with(api_instance, namespace, prefix):
     matching_pods = [pod for pod in pod_list.items if pod.metadata.name.startswith(prefix)]
 
     return matching_pods[0]
+
+def pod_exists(pod_name):
+  output = subprocess.run(['kubectl', 'get', 'pod', pod_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  if output.stderr:
+    print('cant find pod ' + pod_name)
+    return False
+  return True
+
+def deployment_exists(deployment_name):
+  output = subprocess.run(['kubectl', 'get', 'deployment', pod_name], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  if output.stderr:
+    print('cant find deployment ' + deployment_name)
+    return False
+  return True
 
 def parse_pod_output(output):
   youngestPod = get_youngest_pod_name(output)
@@ -238,17 +249,10 @@ def update_k8s_components():
 def remove_instance():
   args = request.get_json()
   id = args['podName']
-  namespace = 'tenant-palatial-platform'
-  deployment_name_prefix = get_pod_name_starts_with(v1, namespace, id)
-  deployments = api_instance.list_namespaced_deployment(namespace)
 
-  matching_deployment = None
-  for deployment in deployments.items:
-    if deployment_name_prefix.metadata.name.startswith(deployment.metadata.name):
-      matching_deployment = deployment
-      break
+  print('Deleting ' + id)
 
-  subprocess.run(['kubectl', 'delete', 'deployment', matching_deployment.metadata.name, '--force', '--grace-period=0'])
+  subprocess.run(['kubectl', 'delete', 'deployment', id, '--force', '--grace-period=0'])
   return 'Success', 200
 
 @app.route('/v1/updateReactWebRepo', methods=['POST'])
@@ -279,15 +283,20 @@ def checkPassword():
 def streamTick():
   args = request.get_json()
   userId = args["userId"]
+  podName = args["podName"]
   user = db.users.find_one({ '_id': ObjectId(userId) })
 
   if not 'streamingTime' in user:
     return jsonify({ 'expired': False }), 200
 
+  print('checking...')
+  if not pod_exists(podName):
+    return jsonify({ "expired": True }), 200
+
   update_query = { "$inc": { "streamingTime": 1 } }
   db.users.update_one({ '_id': ObjectId(userId) }, update_query)
 
-  if user['streamingTime'] >= user['allotedStreamingTime']:
+  if user['allotedStreamingTime'] != -1 and user['streamingTime'] >= user['allotedStreamingTime']:
     return jsonify({ "expired": True }), 200
   return jsonify({ "expired": False }), 200
 

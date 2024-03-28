@@ -53,6 +53,6 @@ if __name__ == "__main__":
       shutil.rmtree(os.path.join(directory, folder))
       os.system(f'bash ~/link-deployment/util/clear_backend_files.sh {folder}')
 
-  os.chdir('/home/david/Palatial-Web-Loading/')
+  os.chdir('/home/david/palatial-web-loading/')
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   subprocess.run(['sudo', 'chown', '-R', 'david:david', '.'])

@@ -30,7 +30,7 @@ def find_port_for_location(file_path, search_string):
 
 def get_app_info(branch):
   config_file_path = f'/etc/nginx/sites-available/{branch}.app'
-  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+  values = dotenv_values('/home/david/palatial-web-loading/.env')
 
   webport = find_port_for_location(config_file_path, branch)
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{branch.upper()}')
@@ -63,7 +63,7 @@ server {{
   ssl_certificate /etc/letsencrypt/live/{branch}.palatialxr.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{branch}.palatialxr.com/privkey.pem;
 
-  root /home/david/Palatial-Web-Loading/;
+  root /home/david/palatial-web-loading/;
   index index.html;
 
   location ~ ^/static/ {{
@@ -95,7 +95,7 @@ def setup_dedicated_server(branch):
   if os.path.exists(file_path):
     return
 
-  env_path = '/home/david/Palatial-Web-Loading/.env'
+  env_path = '/home/david/palatial-web-loading/.env'
   values = dotenv_values(env_path)
   key = 'REACT_APP_DEDICATED_SERVER_PORT_' + branch.upper()
 
@@ -129,7 +129,7 @@ WantedBy=multi-user.target
   subprocess.run(['sudo', 'systemctl', 'start', f'server_{branch}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # When a new environment variable has been made the project needs to be rebuilt to load them in
-  path = os.path.expanduser("~/Palatial-Web-Loading/")
+  path = os.path.expanduser("~/palatial-web-loading/")
   os.chdir(path)
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
 

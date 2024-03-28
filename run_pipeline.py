@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 def clean_string(input_string):
     cleaned_string = input_string.replace("'", "")
-    cleaned_string = input_string.replace("_", "-")
+    cleaned_string = cleaned_string.replace("_", "-")
     cleaned_string = "-".join(cleaned_string.split())
     return cleaned_string
 
@@ -46,7 +46,7 @@ def get_app_info(subdomain, path, is_path_app):
   ext = 'branch' if is_path_app else 'app'
 
   config_file_path = f'/etc/nginx/sites-available/{subdomain}.{ext}'
-  values = dotenv_values('/home/david/Palatial-Web-Loading/.env')
+  values = dotenv_values('/home/david/palatial-web-loading/.env')
   app = path.split('/')[-1]
 
   dserverport = values.get(f'REACT_APP_DEDICATED_SERVER_PORT_{app.upper()}')
@@ -94,9 +94,6 @@ server {{
   ssl_certificate /etc/letsencrypt/live/{subdomain}.palatialxr.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{subdomain}.palatialxr.com/privkey.pem;
 
-  root /home/david/Palatial-Web-Loading/;
-  index index.html;
-
   location = / {{
     { "return 404;" if is_path_app else "proxy_pass http://localhost:3000;" }
   }}
@@ -133,7 +130,7 @@ def setup_dedicated_server(application):
   if os.path.exists(file_path):
     return
 
-  env_path = '/home/david/Palatial-Web-Loading/.env'
+  env_path = '/home/david/palatial-web-loading/.env'
   values = dotenv_values(env_path)
   key = 'REACT_APP_DEDICATED_SERVER_PORT_' + application.upper()
 
@@ -167,7 +164,7 @@ WantedBy=multi-user.target
     subprocess.run(['sudo', 'systemctl', 'start', f'server_{application}'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # When a new environment variable has been made the project needs to be rebuilt to load them in
-  path = os.path.expanduser("~/Palatial-Web-Loading/")
+  path = os.path.expanduser("~/palatial-web-loading/")
   os.chdir(path)
   subprocess.run(['npm', 'run', 'build'], stdout=subprocess.PIPE)
   subprocess.run(['sudo', 'chown', '-R', 'david:david', '.'])

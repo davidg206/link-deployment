@@ -118,9 +118,6 @@ def refresh(domain):
   ssl_certificate /etc/letsencrypt/live/{domain}.palatialxr.com/fullchain.pem;
   ssl_certificate_key /etc/letsencrypt/live/{domain}.palatialxr.com/privkey.pem;
 
-  root /home/david/palatial-web-loading/build/;
-  index index.html;
-
   location ~ ^/(|edit)$ {{
     return 404;
   }}
